@@ -132,12 +132,6 @@ Panel {
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
 
-  readonly property string quickViewLabel: root.quickView === "inbox" ? "INBOX"
-    : root.quickView === "tomorrow" ? "DEMAIN"
-    : root.quickView === "all" ? "TOUTES LES TÂCHES"
-    : root.quickView === "custom" ? "FILTRE PERSONNALISÉ"
-    : "AUJ ET EN RETARD"
-
   readonly property string emptyStateMessage: root.quickView === "inbox" ? "Inbox est vide."
     : root.quickView === "tomorrow" ? "Rien à faire demain."
     : root.quickView === "all" ? "Aucune tâche pour le moment."
@@ -1847,16 +1841,6 @@ Panel {
 
             PanelSeparator {
               foreground: root.contentForeground
-            }
-
-            PanelSectionHeader {
-              // The Today view splits into its own OVERDUE/TODAY row-anchored
-              // headers below instead of one generic label up here.
-              visible: root.apiToken !== "" && root.quickView !== "today"
-              height: visible ? implicitHeight : 0
-              text: root.quickViewLabel
-              foreground: root.contentForeground
-              fontFamily: root.contentFontFamily
             }
 
             ListView {
