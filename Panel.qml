@@ -727,7 +727,7 @@ Panel {
         try {
           var parsed = JSON.parse(raw)
           var results = (parsed && parsed.results) ? parsed.results : []
-          root.tasks = Model.sortedTasks(results)
+          root.tasks = Model.sortedTasks(Model.topLevelTasks(results))
           root.errorText = ""
           root.lastSyncedAt = Date.now()
           // Keeps the bar badge's "same tab" fast path maximally fresh
@@ -764,7 +764,7 @@ Panel {
         try {
           var parsed = JSON.parse(raw)
           var results = (parsed && parsed.results) ? parsed.results : []
-          root.barCountValue = results.length
+          root.barCountValue = Model.topLevelTasks(results).length
         } catch (e) {
           // Keep the last known value.
         }
@@ -779,7 +779,8 @@ Panel {
   function applyViewCount(view, raw) {
     try {
       var parsed = JSON.parse(String(raw || "").trim())
-      var count = (parsed && parsed.results) ? parsed.results.length : 0
+      var results = (parsed && parsed.results) ? parsed.results : []
+      var count = Model.topLevelTasks(results).length
       if (view === "today") root.todayTaskCount = count
       else if (view === "tomorrow") root.tomorrowTaskCount = count
       else if (view === "inbox") root.inboxTaskCount = count
