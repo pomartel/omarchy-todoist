@@ -1142,11 +1142,10 @@ Panel {
           if (t === "t" || t === "T") root.openTodoistWebsite()
           return
         }
-        if (t === "q" || t === "Q") { quickAddField.forceActiveFocus(); return }
+        if (t === "a" || t === "A") { quickAddField.forceActiveFocus(); return }
         if (t === "e" || t === "E") { root.startEditSelectedTask(); return }
         if (t === "t" || t === "T") { root.selectQuickView("today"); return }
         if (t === "i" || t === "I") { root.selectQuickView("inbox"); return }
-        if (t === "a" || t === "A") root.selectQuickView("all")
       }
 
       Flickable {
@@ -1961,14 +1960,14 @@ Panel {
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.bodySmall
                     text: "Tab / Maj+Tab — parcourir Aujourd’hui → Inbox → Tout\n"
-                      + "t / i / a — accéder à Aujourd’hui / Inbox / Tout\n"
+                      + "t / i — accéder à Aujourd’hui / Inbox\n"
                       + "p — afficher/masquer les réglages\n"
                       + "↑/↓ ou k/j — déplacer la sélection\n"
                       + "Entrée — ouvrir la tâche dans Todoist\n"
                       + "Espace — marquer comme terminée\n"
                       + "e — modifier le titre\n"
                       + "x — supprimer la tâche\n"
-                      + "q — accéder à Ajouter une tâche\n"
+                      + "a — accéder à Ajouter une tâche\n"
                       + "r — actualiser\n"
                       + "Échap — revenir / fermer\n"
                       + "? — afficher/masquer cette aide"
