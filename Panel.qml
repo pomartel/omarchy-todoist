@@ -1736,14 +1736,15 @@ Panel {
           }
 
           // ---- Task list view ---------------------------------------------
-          Column {
-            id: taskColumn
-            width: parent.width
-            visible: !root.settingsView
-            height: visible ? implicitHeight : 0
-            spacing: Style.spacing.md
+            Column {
+              id: taskColumn
+              width: parent.width
+              visible: !root.settingsView
+              height: visible ? scroll.height : 0
+              spacing: Style.spacing.md
 
             Row {
+              id: quickAddRow
               width: parent.width
               clip: true
               spacing: Style.spacing.sm
@@ -1815,13 +1816,18 @@ Panel {
             }
 
             PanelSeparator {
+              id: taskListSeparator
               foreground: root.contentForeground
             }
 
             ListView {
               id: taskListView
               width: parent.width
-              height: Math.min(contentHeight, Style.space(320))
+              height: root.tasks.length > 0
+                ? Math.max(0, taskColumn.height - quickAddRow.implicitHeight
+                    - quickViewRow.implicitHeight - taskListSeparator.implicitHeight
+                    - taskColumn.spacing * 3)
+                : 0
               spacing: Style.spacing.sm
               clip: true
               boundsBehavior: Flickable.StopAtBounds
