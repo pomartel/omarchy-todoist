@@ -12,8 +12,8 @@ import "Model.js" as Model
 // holds the personal API token.
 Panel {
   id: root
-  moduleName: "io.github.aryan-techie.todoist"
-  ipcTarget: "io.github.aryan-techie.todoist"
+  moduleName: "omarchy-todoist"
+  ipcTarget: "omarchy-todoist"
   manageIpc: false
 
   property var anchorItem: null
@@ -22,8 +22,8 @@ Panel {
 
   readonly property string apiBase: "https://api.todoist.com/api/v1"
   readonly property string homeDir: Quickshell.env("HOME")
-  readonly property string pluginDir: homeDir + "/.config/omarchy/plugins/io.github.aryan-techie.todoist"
-  readonly property string stateDir: homeDir + "/.local/state/omarchy/io.github.aryan-techie.todoist"
+  readonly property string pluginDir: homeDir + "/.config/omarchy/plugins/omarchy-todoist"
+  readonly property string stateDir: homeDir + "/.local/state/omarchy/omarchy-todoist"
   readonly property string settingsPath: stateDir + "/settings.json"
 
   property string apiToken: ""
