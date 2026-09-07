@@ -128,23 +128,23 @@ Panel {
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
 
-  readonly property string quickViewLabel: root.quickView === "inbox" ? "INBOX"
-    : root.quickView === "all" ? "ALL TASKS"
-    : root.quickView === "custom" ? "CUSTOM FILTER"
-    : "TODAY & OVERDUE"
+  readonly property string quickViewLabel: root.quickView === "inbox" ? "BOÎTE DE RÉCEPTION"
+    : root.quickView === "all" ? "TOUTES LES TÂCHES"
+    : root.quickView === "custom" ? "FILTRE PERSONNALISÉ"
+    : "AUJOURD’HUI ET EN RETARD"
 
   // Short form for the header stats grid, where a narrow fixed column
   // (down to a 260px panel width, Settings → Advanced) has much less room
   // than the section-header use of quickViewLabel above.
-  readonly property string quickViewShortLabel: root.quickView === "inbox" ? "INBOX"
-    : root.quickView === "all" ? "ALL"
-    : root.quickView === "custom" ? "CUSTOM"
-    : "TODAY"
+  readonly property string quickViewShortLabel: root.quickView === "inbox" ? "BOÎTE"
+    : root.quickView === "all" ? "TOUT"
+    : root.quickView === "custom" ? "FILTRE"
+    : "AUJOURD’HUI"
 
-  readonly property string emptyStateMessage: root.quickView === "inbox" ? "Inbox is empty."
-    : root.quickView === "all" ? "No tasks yet."
-    : root.quickView === "custom" ? "No tasks match this filter."
-    : "Nothing due. You're clear."
+  readonly property string emptyStateMessage: root.quickView === "inbox" ? "La boîte de réception est vide."
+    : root.quickView === "all" ? "Aucune tâche pour le moment."
+    : root.quickView === "custom" ? "Aucune tâche ne correspond à ce filtre."
+    : "Rien à faire. Tout est en ordre."
 
   // ---- Overdue count. Computed across whatever's currently loaded in
   //      root.tasks regardless of view, so the header stats grid's OVERDUE
@@ -169,7 +169,7 @@ Panel {
     if (root.quickView !== "today" || index < 0 || index >= root.tasks.length) return ""
     var isOverdue = Model.taskIsOverdue(root.tasks[index])
     if (index > 0 && Model.taskIsOverdue(root.tasks[index - 1]) === isOverdue) return ""
-    return isOverdue ? ("OVERDUE · " + root.overdueCount) : ("TODAY · " + root.todayDueCount)
+    return isOverdue ? ("EN RETARD · " + root.overdueCount) : ("AUJOURD’HUI · " + root.todayDueCount)
   }
 
   // Stats grid shows whenever there's a token, we're not mid-settings, and
@@ -181,17 +181,17 @@ Panel {
     && !(root.loading && root.tasks.length === 0)
 
   readonly property string headerMeta: {
-    if (root.apiToken === "") return "NOT CONNECTED"
-    if (root.settingsView) return "SETTINGS"
-    if (root.loading && root.tasks.length === 0) return "LOADING…"
+    if (root.apiToken === "") return "NON CONNECTÉ"
+    if (root.settingsView) return "RÉGLAGES"
+    if (root.loading && root.tasks.length === 0) return "CHARGEMENT…"
     return root.quickViewShortLabel
   }
 
   readonly property string syncedLabel: Model.formatRelativeTime(root.lastSyncedAt)
 
-  readonly property string barCountModeLabel: root.barCountMode === "today" ? "today"
-    : root.barCountMode === "inbox" ? "in Inbox"
-    : root.barCountMode === "all" ? "total"
+  readonly property string barCountModeLabel: root.barCountMode === "today" ? "aujourd’hui"
+    : root.barCountMode === "inbox" ? "dans la boîte"
+    : root.barCountMode === "all" ? "au total"
     : ""
 
   // ---- Lifecycle. Matches the clock/weather contract: open() refreshes
@@ -530,7 +530,7 @@ Panel {
     var query = view === "inbox" ? "#Inbox"
       : view === "custom" ? root.filterQuery
       : "today | overdue"
-    return root.apiBase + "/tasks/filter?query=" + encodeURIComponent(query) + "&lang=en"
+    return root.apiBase + "/tasks/filter?query=" + encodeURIComponent(query) + "&lang=fr"
   }
 
   function refresh() {
@@ -689,12 +689,12 @@ Panel {
 
     var keyStr = root.hyprKeyName(event.key)
     if (keyStr === "") {
-      root.keybindRecordError = "Unsupported key — try a letter, digit, F-key, or punctuation key."
+      root.keybindRecordError = "Touche non prise en charge — essayez une lettre, un chiffre, une touche F ou un signe de ponctuation."
       event.accepted = true
       return
     }
     if (mods.length === 0) {
-      root.keybindRecordError = "Add a modifier (Super/Ctrl/Alt/Shift) — a bare key would break typing everywhere."
+      root.keybindRecordError = "Ajoutez une touche modificatrice (Super/Ctrl/Alt/Shift) — une touche seule perturberait la saisie partout."
       event.accepted = true
       return
     }
@@ -758,7 +758,7 @@ Panel {
           // without waiting for the next poll tick.
           root.refreshBarCount()
         } catch (e) {
-          root.errorText = "Couldn't read the response from Todoist."
+          root.errorText = "Impossible de lire la réponse de Todoist."
         }
       }
     }
@@ -899,7 +899,7 @@ Panel {
         persistSettings()
       } else {
         root.keybindApplyStatus = "error"
-        root.keybindApplyError = (keybindErr.text || "").trim() || "Failed to apply keybind."
+        root.keybindApplyError = (keybindErr.text || "").trim() || "Impossible d’appliquer le raccourci."
       }
     }
   }
@@ -1039,7 +1039,7 @@ Panel {
       anchors.top: parent.top
       anchors.topMargin: Style.spacing.sm
       iconText: row.completing ? "●" : "○"
-      tooltipText: "Mark complete (Space)"
+      tooltipText: "Marquer comme terminée (Espace)"
       foreground: row.textColor
       enabled: !row.completing
       onClicked: root.requestComplete(row.task ? row.task.id : "")
@@ -1262,7 +1262,7 @@ Panel {
 
               PanelActionButton {
                 iconText: root.settingsView ? "✕" : "󰒓"
-                tooltipText: root.settingsView ? "Close settings (Esc)" : "Settings (p)"
+                tooltipText: root.settingsView ? "Fermer les réglages (Échap)" : "Réglages (p)"
                 foreground: root.contentForeground
                 onClicked: root.settingsView = !root.settingsView
               }
@@ -1298,13 +1298,13 @@ Panel {
 
             readonly property real cellWidth: (width - columnSpacing * 3) / 4
 
-            StatLabel { text: "TASKS"; Layout.preferredWidth: statsGrid.cellWidth }
+            StatLabel { text: "TÂCHES"; Layout.preferredWidth: statsGrid.cellWidth }
             StatValue {
               Layout.preferredWidth: statsGrid.cellWidth
               horizontalAlignment: Text.AlignRight
               text: String(root.taskCount)
             }
-            StatLabel { text: "OVERDUE"; Layout.preferredWidth: statsGrid.cellWidth }
+            StatLabel { text: "EN RETARD"; Layout.preferredWidth: statsGrid.cellWidth }
             StatValue {
               Layout.preferredWidth: statsGrid.cellWidth
               horizontalAlignment: Text.AlignRight
@@ -1312,13 +1312,13 @@ Panel {
               color: root.overdueCount > 0 ? Color.urgent : root.contentForeground
             }
 
-            StatLabel { text: "VIEW"; Layout.preferredWidth: statsGrid.cellWidth }
+            StatLabel { text: "VUE"; Layout.preferredWidth: statsGrid.cellWidth }
             StatValue {
               Layout.preferredWidth: statsGrid.cellWidth
               horizontalAlignment: Text.AlignRight
               text: root.quickViewShortLabel
             }
-            StatLabel { text: "SYNCED"; Layout.preferredWidth: statsGrid.cellWidth }
+            StatLabel { text: "SYNCHRO"; Layout.preferredWidth: statsGrid.cellWidth }
             StatValue {
               Layout.preferredWidth: statsGrid.cellWidth
               horizontalAlignment: Text.AlignRight
@@ -1339,14 +1339,14 @@ Panel {
             spacing: Style.spacing.md
 
             PanelSectionHeader {
-              text: "ACCOUNT"
+              text: "COMPTE"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
             }
 
             Text {
               width: parent.width
-              text: "Paste your Todoist personal API token — Todoist → Settings → Integrations → Developer."
+              text: "Collez votre jeton API personnel Todoist — Todoist → Réglages → Intégrations → Développeur."
               wrapMode: Text.WordWrap
               color: Qt.darker(root.contentForeground, 1.3)
               font.family: root.contentFontFamily
@@ -1358,7 +1358,7 @@ Panel {
               width: parent.width
               password: true
               activeFocusOnTab: false
-              placeholderText: root.apiToken !== "" ? "Token saved — paste a new one to replace it" : "API token"
+              placeholderText: root.apiToken !== "" ? "Jeton enregistré — collez-en un nouveau pour le remplacer" : "Jeton API"
               text: root.tokenDraft
               onTextChanged: root.tokenDraft = text
               onAccepted: root.saveToken()
@@ -1382,14 +1382,14 @@ Panel {
 
               NavButton {
                 id: saveTokenButton
-                text: "Save token"
+                text: "Enregistrer le jeton"
                 enabled: root.tokenDraft.trim() !== ""
                 onClicked: root.saveToken()
               }
 
               NavButton {
                 id: removeTokenButton
-                text: "Remove token"
+                text: "Supprimer le jeton"
                 visible: root.apiToken !== ""
                 onClicked: root.clearToken()
               }
@@ -1400,14 +1400,14 @@ Panel {
             }
 
             PanelSectionHeader {
-              text: "DEFAULT FILTER"
+              text: "FILTRE PAR DÉFAUT"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
             }
 
             Text {
               width: parent.width
-              text: "Todoist filter syntax (e.g. \"today | overdue\", \"#Work & !subtask\") — applied as the \"custom\" view."
+              text: "Syntaxe des filtres Todoist (ex. « today | overdue », « #Work & !subtask ») — utilisée comme vue « personnalisée »."
               wrapMode: Text.WordWrap
               color: Qt.darker(root.contentForeground, 1.3)
               font.family: root.contentFontFamily
@@ -1433,7 +1433,7 @@ Panel {
 
               NavButton {
                 id: filterApplyButton
-                text: "Apply"
+                text: "Appliquer"
                 onClicked: root.applyFilter(filterField.text)
               }
             }
@@ -1443,14 +1443,14 @@ Panel {
             }
 
             PanelSectionHeader {
-              text: "BAR COUNT"
+              text: "COMPTEUR DE LA BARRE"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
             }
 
             Text {
               width: parent.width
-              text: "Show a task count on the bar icon, independent of whichever tab the popup itself is on."
+              text: "Afficher le nombre de tâches sur l’icône de la barre, indépendamment de l’onglet affiché dans la fenêtre."
               wrapMode: Text.WordWrap
               color: Qt.darker(root.contentForeground, 1.3)
               font.family: root.contentFontFamily
@@ -1473,7 +1473,7 @@ Panel {
               NavButton {
                 id: barCountHideButton
                 width: barCountRow.cellWidth
-                text: "Hide"
+                text: "Masquer"
                 selected: root.barCountMode === "hide"
                 onClicked: root.setBarCountMode("hide")
               }
@@ -1481,7 +1481,7 @@ Panel {
               NavButton {
                 id: barCountTodayButton
                 width: barCountRow.cellWidth
-                text: "Today"
+                text: "Aujourd’hui"
                 selected: root.barCountMode === "today"
                 onClicked: root.setBarCountMode("today")
               }
@@ -1489,7 +1489,7 @@ Panel {
               NavButton {
                 id: barCountInboxButton
                 width: barCountRow.cellWidth
-                text: "Inbox"
+                text: "Boîte"
                 selected: root.barCountMode === "inbox"
                 onClicked: root.setBarCountMode("inbox")
               }
@@ -1497,7 +1497,7 @@ Panel {
               NavButton {
                 id: barCountAllButton
                 width: barCountRow.cellWidth
-                text: "All"
+                text: "Tout"
                 selected: root.barCountMode === "all"
                 onClicked: root.setBarCountMode("all")
               }
@@ -1512,14 +1512,14 @@ Panel {
               spacing: Style.spacing.sm
 
               PanelSectionHeader {
-                text: "KEYBOARD SHORTCUT"
+                text: "RACCOURCI CLAVIER"
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
               }
 
               Text {
                 width: parent.width
-                text: root.keybindCombo !== "" ? ("Current: " + root.keybindCombo) : "No shortcut set."
+                text: root.keybindCombo !== "" ? ("Actuel : " + root.keybindCombo) : "Aucun raccourci défini."
                 color: Qt.darker(root.contentForeground, 1.3)
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -1539,14 +1539,14 @@ Panel {
 
                 NavButton {
                   id: recordCustomButton
-                  text: "Record custom…"
+                  text: "Enregistrer un raccourci…"
                   enabled: root.keybindApplyStatus !== "applying"
                   onClicked: root.startRecordingKeybind()
                 }
 
                 NavButton {
                   id: removeKeybindButton
-                  text: "Remove"
+                  text: "Supprimer"
                   visible: root.keybindCombo !== ""
                   enabled: root.keybindApplyStatus !== "applying"
                   onClicked: root.removeKeybindCombo()
@@ -1568,7 +1568,7 @@ Panel {
 
                   Text {
                     anchors.centerIn: parent
-                    text: root.pendingKeybindCombo !== "" ? root.pendingKeybindCombo : "Press a shortcut…"
+                    text: root.pendingKeybindCombo !== "" ? root.pendingKeybindCombo : "Appuyez sur un raccourci…"
                     color: root.contentForeground
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.body
@@ -1584,7 +1584,7 @@ Panel {
 
                 Text {
                   width: parent.width
-                  text: root.keybindRecordError !== "" ? root.keybindRecordError : "Hold your modifiers and press a key. Esc cancels."
+                  text: root.keybindRecordError !== "" ? root.keybindRecordError : "Maintenez les touches modificatrices et appuyez sur une touche. Échap annule."
                   color: root.keybindRecordError !== "" ? Color.urgent : Qt.darker(root.contentForeground, 1.4)
                   wrapMode: Text.WordWrap
                   font.family: root.contentFontFamily
@@ -1596,14 +1596,14 @@ Panel {
 
                   NavButton {
                     id: applyKeybindButton
-                    text: "Apply"
+                    text: "Appliquer"
                     enabled: root.pendingKeybindCombo !== "" && root.keybindApplyStatus !== "applying"
                     onClicked: root.applyKeybindCombo(root.pendingKeybindCombo)
                   }
 
                   NavButton {
                     id: cancelKeybindButton
-                    text: "Cancel"
+                    text: "Annuler"
                     onClicked: root.cancelRecordingKeybind()
                   }
                 }
@@ -1621,7 +1621,7 @@ Panel {
 
               Text {
                 width: parent.width
-                text: "Applies immediately by editing ~/.config/hypr/bindings.lua (backed up first) and reloading Hyprland. Any error rolls the change back automatically."
+                text: "S’applique immédiatement en modifiant ~/.config/hypr/bindings.lua (sauvegarde préalable) et en rechargeant Hyprland. Toute erreur annule automatiquement la modification."
                 color: Qt.darker(root.contentForeground, 1.5)
                 wrapMode: Text.WordWrap
                 font.family: root.contentFontFamily
@@ -1638,7 +1638,7 @@ Panel {
               spacing: Style.spacing.sm
 
               PanelSectionHeader {
-                text: "GENERAL"
+                text: "GÉNÉRAL"
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
               }
@@ -1652,7 +1652,7 @@ Panel {
                   width: parent.width
                   leftAlign: true
                   bordered: true
-                  text: root.loading ? "Refreshing…" : "Refresh now (r)"
+                  text: root.loading ? "Actualisation…" : "Actualiser maintenant (r)"
                   enabled: root.apiToken !== "" && !root.loading
                   onClicked: root.refresh()
                 }
@@ -1662,7 +1662,7 @@ Panel {
                   width: parent.width
                   leftAlign: true
                   bordered: true
-                  text: "Open Todoist (t)"
+                  text: "Ouvrir Todoist (t)"
                   onClicked: root.openTodoistWebsite()
                 }
 
@@ -1671,7 +1671,7 @@ Panel {
                   width: parent.width
                   leftAlign: true
                   bordered: true
-                  text: "Keyboard shortcuts (?)"
+                  text: "Raccourcis clavier (?)"
                   onClicked: root.helpOpen = true
                 }
               }
@@ -1686,14 +1686,14 @@ Panel {
               spacing: Style.spacing.sm
 
               PanelSectionHeader {
-                text: "ADVANCED"
+                text: "AVANCÉ"
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
               }
 
               Text {
                 width: parent.width
-                text: "Popup size — fixed regardless of task count; content scrolls instead of resizing the panel."
+                text: "Taille de la fenêtre — fixe quel que soit le nombre de tâches ; le contenu défile au lieu de redimensionner le panneau."
                 wrapMode: Text.WordWrap
                 color: Qt.darker(root.contentForeground, 1.3)
                 font.family: root.contentFontFamily
@@ -1717,7 +1717,7 @@ Panel {
 
                   Text {
                     id: widthLabelText
-                    text: "Width  " + root.panelWidth + "px"
+                    text: "Largeur  " + root.panelWidth + " px"
                     color: root.contentForeground
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.body
@@ -1762,7 +1762,7 @@ Panel {
 
                   Text {
                     id: heightLabelText
-                    text: "Height  " + root.panelHeight + "px"
+                    text: "Hauteur  " + root.panelHeight + " px"
                     color: root.contentForeground
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.body
@@ -1814,7 +1814,7 @@ Panel {
                 id: quickAddField
                 width: parent.width - addButton.width - Style.spacing.sm
                 enabled: root.apiToken !== ""
-                placeholderText: "Add a task… (p1, #Project, tomorrow at 5pm)"
+                placeholderText: "Ajouter une tâche… (p1, #Projet, demain à 17 h)"
                 text: root.quickAddText
                 onTextChanged: root.quickAddText = text
                 onAccepted: root.submitQuickAdd()
@@ -1826,7 +1826,7 @@ Panel {
 
               Button {
                 id: addButton
-                text: root.quickAddSubmitting ? "Adding…" : "Add"
+                text: root.quickAddSubmitting ? "Ajout…" : "Ajouter"
                 enabled: root.apiToken !== "" && !root.quickAddSubmitting && root.quickAddText.trim() !== ""
                 onClicked: root.submitQuickAdd()
               }
@@ -1849,7 +1849,7 @@ Panel {
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               options: ["today", "inbox", "all"].map(function(v) {
-                return { value: v, label: v === "today" ? "Today" : v === "inbox" ? "Inbox" : "All" }
+                return { value: v, label: v === "today" ? "Aujourd’hui" : v === "inbox" ? "Boîte" : "Tout" }
               })
               value: root.quickView
               onChanged: function(v) { root.selectQuickView(v) }
@@ -1926,7 +1926,7 @@ Panel {
               visible: root.loading && root.tasks.length === 0
               height: visible ? implicitHeight : 0
               width: parent.width
-              text: "Loading…"
+              text: "Chargement…"
               color: Qt.darker(root.contentForeground, 1.3)
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.bodySmall
@@ -1960,8 +1960,8 @@ Panel {
       ConfirmDialog {
         id: confirmDialog
         anchors.fill: parent
-        message: "Delete \"" + root.pendingDeleteTaskContent + "\"?"
-        confirmText: "Delete"
+        message: "Supprimer « " + root.pendingDeleteTaskContent + " » ?"
+        confirmText: "Supprimer"
         background: Color.popups.background
         foreground: root.contentForeground
         onCanceled: root.cancelDeleteTask()
@@ -2035,7 +2035,7 @@ Panel {
                   spacing: Style.spacing.sm
 
                   Text {
-                    text: "Keyboard shortcuts"
+                    text: "Raccourcis clavier"
                     font.bold: true
                     color: root.contentForeground
                     font.family: root.contentFontFamily
@@ -2048,18 +2048,18 @@ Panel {
                     color: root.contentForeground
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.bodySmall
-                    text: "Tab / Shift+Tab — cycle Today → Inbox → All\n"
-                      + "t / i / a — jump to Today / Inbox / All\n"
-                      + "p — toggle Settings\n"
-                      + "↑/↓ or k/j — move task selection\n"
-                      + "Enter — open task on Todoist\n"
-                      + "Space — complete task\n"
-                      + "e — edit task title\n"
-                      + "x — delete task\n"
-                      + "q — focus Add-a-task\n"
-                      + "r — refresh\n"
-                      + "Escape — back / close\n"
-                      + "? — toggle this help"
+                    text: "Tab / Maj+Tab — parcourir Aujourd’hui → Boîte → Tout\n"
+                      + "t / i / a — accéder à Aujourd’hui / Boîte / Tout\n"
+                      + "p — afficher/masquer les réglages\n"
+                      + "↑/↓ ou k/j — déplacer la sélection\n"
+                      + "Entrée — ouvrir la tâche dans Todoist\n"
+                      + "Espace — marquer comme terminée\n"
+                      + "e — modifier le titre\n"
+                      + "x — supprimer la tâche\n"
+                      + "q — accéder à Ajouter une tâche\n"
+                      + "r — actualiser\n"
+                      + "Échap — revenir / fermer\n"
+                      + "? — afficher/masquer cette aide"
                   }
                 }
               }
