@@ -1812,7 +1812,7 @@ Panel {
 
               TextField {
                 id: quickAddField
-                width: parent.width - addButton.width - Style.spacing.sm
+                width: parent.width
                 enabled: root.apiToken !== ""
                 placeholderText: "Ajouter une tâche… (p1, #Projet, demain à 17 h)"
                 text: root.quickAddText
@@ -1822,13 +1822,6 @@ Panel {
                 // nav) rather than falling through to the panel's own
                 // Escape, which would otherwise do nothing while blocked.
                 Keys.onEscapePressed: keyCatcher.forceActiveFocus()
-              }
-
-              Button {
-                id: addButton
-                text: root.quickAddSubmitting ? "Ajout…" : "Ajouter"
-                enabled: root.apiToken !== "" && !root.quickAddSubmitting && root.quickAddText.trim() !== ""
-                onClicked: root.submitQuickAdd()
               }
             }
 
