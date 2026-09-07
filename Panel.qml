@@ -128,7 +128,7 @@ Panel {
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
 
-  readonly property string quickViewLabel: root.quickView === "inbox" ? "BOÎTE DE RÉCEPTION"
+  readonly property string quickViewLabel: root.quickView === "inbox" ? "INBOX"
     : root.quickView === "all" ? "TOUTES LES TÂCHES"
     : root.quickView === "custom" ? "FILTRE PERSONNALISÉ"
     : "AUJOURD’HUI ET EN RETARD"
@@ -136,12 +136,12 @@ Panel {
   // Short form for the header stats grid, where a narrow fixed column
   // (down to a 260px panel width, Settings → Advanced) has much less room
   // than the section-header use of quickViewLabel above.
-  readonly property string quickViewShortLabel: root.quickView === "inbox" ? "BOÎTE"
+  readonly property string quickViewShortLabel: root.quickView === "inbox" ? "INBOX"
     : root.quickView === "all" ? "TOUT"
     : root.quickView === "custom" ? "FILTRE"
     : "AUJOURD’HUI"
 
-  readonly property string emptyStateMessage: root.quickView === "inbox" ? "La boîte de réception est vide."
+  readonly property string emptyStateMessage: root.quickView === "inbox" ? "Inbox est vide."
     : root.quickView === "all" ? "Aucune tâche pour le moment."
     : root.quickView === "custom" ? "Aucune tâche ne correspond à ce filtre."
     : "Rien à faire. Tout est en ordre."
@@ -190,7 +190,7 @@ Panel {
   readonly property string syncedLabel: Model.formatRelativeTime(root.lastSyncedAt)
 
   readonly property string barCountModeLabel: root.barCountMode === "today" ? "aujourd’hui"
-    : root.barCountMode === "inbox" ? "dans la boîte"
+    : root.barCountMode === "inbox" ? "dans Inbox"
     : root.barCountMode === "all" ? "au total"
     : ""
 
@@ -1489,7 +1489,7 @@ Panel {
               NavButton {
                 id: barCountInboxButton
                 width: barCountRow.cellWidth
-                text: "Boîte"
+                text: "Inbox"
                 selected: root.barCountMode === "inbox"
                 onClicked: root.setBarCountMode("inbox")
               }
@@ -1849,7 +1849,7 @@ Panel {
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               options: ["today", "inbox", "all"].map(function(v) {
-                return { value: v, label: v === "today" ? "Aujourd’hui" : v === "inbox" ? "Boîte" : "Tout" }
+                return { value: v, label: v === "today" ? "Aujourd’hui" : v === "inbox" ? "Inbox" : "Tout" }
               })
               value: root.quickView
               onChanged: function(v) { root.selectQuickView(v) }
@@ -2048,8 +2048,8 @@ Panel {
                     color: root.contentForeground
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.bodySmall
-                    text: "Tab / Maj+Tab — parcourir Aujourd’hui → Boîte → Tout\n"
-                      + "t / i / a — accéder à Aujourd’hui / Boîte / Tout\n"
+                    text: "Tab / Maj+Tab — parcourir Aujourd’hui → Inbox → Tout\n"
+                      + "t / i / a — accéder à Aujourd’hui / Inbox / Tout\n"
                       + "p — afficher/masquer les réglages\n"
                       + "↑/↓ ou k/j — déplacer la sélection\n"
                       + "Entrée — ouvrir la tâche dans Todoist\n"
