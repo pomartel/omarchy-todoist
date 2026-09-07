@@ -1183,6 +1183,10 @@ Panel {
         else root.cycleQuickView(direction)
       }
       onMoveRequested: function(dx, dy) {
+        if (dx !== 0) {
+          if (!root.settingsView) root.cycleQuickView(dx)
+          return
+        }
         if (dy === 0) return
         if (root.settingsView) root.moveSettingsFocus(dy)
         else root.moveTaskCursor(dy)
