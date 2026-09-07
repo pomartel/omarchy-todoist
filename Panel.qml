@@ -133,9 +133,8 @@ Panel {
     : root.quickView === "custom" ? "FILTRE PERSONNALISÉ"
     : "AUJOURD’HUI ET EN RETARD"
 
-  // Short form for the header stats grid, where a narrow fixed column
-  // (down to a 260px panel width, Settings → Advanced) has much less room
-  // than the section-header use of quickViewLabel above.
+  // Short form for the header subtitle, where a narrow fixed column has less
+  // room than the section-header use of quickViewLabel above.
   readonly property string quickViewShortLabel: root.quickView === "inbox" ? "INBOX"
     : root.quickView === "all" ? "TOUT"
     : root.quickView === "custom" ? "FILTRE"
@@ -172,22 +171,12 @@ Panel {
     return isOverdue ? ("EN RETARD · " + root.overdueCount) : ("AUJOURD’HUI · " + root.todayDueCount)
   }
 
-  // Stats grid shows whenever there's a token, we're not mid-settings, and
-  // the very first fetch has landed — independent of the subtitle line
-  // below (they used to be mutually exclusive; the Wi-Fi panel shows its
-  // icon/title/subtitle *and* its stats grid together, always, so this
-  // does too).
-  readonly property bool headerStatsVisible: root.apiToken !== "" && !root.settingsView
-    && !(root.loading && root.tasks.length === 0)
-
   readonly property string headerMeta: {
     if (root.apiToken === "") return "NON CONNECTÉ"
     if (root.settingsView) return "RÉGLAGES"
     if (root.loading && root.tasks.length === 0) return "CHARGEMENT…"
     return root.quickViewShortLabel
   }
-
-  readonly property string syncedLabel: Model.formatRelativeTime(root.lastSyncedAt)
 
   readonly property string barCountModeLabel: root.barCountMode === "today" ? "aujourd’hui"
     : root.barCountMode === "inbox" ? "dans Inbox"
@@ -968,21 +957,6 @@ Panel {
     }
   }
 
-  // ---- Header stats grid — same label/value pairing the built-in network
-  //      panel uses for its Ping/Packet Loss/IP/Gateway grid.
-  component StatLabel: Text {
-    color: root.contentForeground
-    opacity: 0.6
-    font.family: root.contentFontFamily
-    font.pixelSize: Style.font.bodySmall
-  }
-
-  component StatValue: Text {
-    color: root.contentForeground
-    font.family: root.contentFontFamily
-    font.pixelSize: Style.font.bodySmall
-  }
-
   // ---- One task row: complete button + content + due label. ----------
   component TaskRow: Item {
     id: row
@@ -1266,63 +1240,6 @@ Panel {
                 foreground: root.contentForeground
                 onClicked: root.settingsView = !root.settingsView
               }
-            }
-          }
-
-          // ---- Stats grid, native-panel style (network panel's Ping/
-          //      Packet Loss/IP/Gateway grid, GridLayout + right-aligned
-          //      values, not a plain Grid — a plain Grid has no stretch
-          //      behavior, which left the first pass hugging the left edge
-          //      with dead space on the right). Every cell derives from
-          //      state already fetched/computed elsewhere — no extra API
-          //      calls.
-          //
-          //      Every cell gets an explicit, equal Layout.preferredWidth
-          //      instead of Layout.fillWidth + GridLayout's own content-
-          //      based auto-sizing — fillWidth let the VIEW column's width
-          //      track quickViewShortLabel's text length ("TODAY"/"INBOX",
-          //      5 chars, vs "ALL", 3), which shifted where every column
-          //      after it landed depending on which tab was active. Same
-          //      fixed-cellWidth technique already used for the tab
-          //      ButtonGroup's wrapper sizing and barCountRow below —
-          //      column widths now can't depend on any cell's content.
-          GridLayout {
-            id: statsGrid
-            width: parent.width
-            visible: root.headerStatsVisible
-            height: visible ? implicitHeight : 0
-            clip: true
-            columns: 4
-            columnSpacing: Style.space(20)
-            rowSpacing: Style.spacing.labelGap
-
-            readonly property real cellWidth: (width - columnSpacing * 3) / 4
-
-            StatLabel { text: "TÂCHES"; Layout.preferredWidth: statsGrid.cellWidth }
-            StatValue {
-              Layout.preferredWidth: statsGrid.cellWidth
-              horizontalAlignment: Text.AlignRight
-              text: String(root.taskCount)
-            }
-            StatLabel { text: "EN RETARD"; Layout.preferredWidth: statsGrid.cellWidth }
-            StatValue {
-              Layout.preferredWidth: statsGrid.cellWidth
-              horizontalAlignment: Text.AlignRight
-              text: String(root.overdueCount)
-              color: root.overdueCount > 0 ? Color.urgent : root.contentForeground
-            }
-
-            StatLabel { text: "VUE"; Layout.preferredWidth: statsGrid.cellWidth }
-            StatValue {
-              Layout.preferredWidth: statsGrid.cellWidth
-              horizontalAlignment: Text.AlignRight
-              text: root.quickViewShortLabel
-            }
-            StatLabel { text: "SYNCHRO"; Layout.preferredWidth: statsGrid.cellWidth }
-            StatValue {
-              Layout.preferredWidth: statsGrid.cellWidth
-              horizontalAlignment: Text.AlignRight
-              text: root.syncedLabel
             }
           }
 
@@ -1842,7 +1759,9 @@ Panel {
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               options: ["today", "inbox", "all"].map(function(v) {
-                return { value: v, label: v === "today" ? "Aujourd’hui" : v === "inbox" ? "Inbox" : "Tout" }
+                var label = v === "today" ? "Aujourd’hui" : v === "inbox" ? "Inbox" : "Tout"
+                if (root.quickView === v) label += " (" + root.taskCount + ")"
+                return { value: v, label: label }
               })
               value: root.quickView
               onChanged: function(v) { root.selectQuickView(v) }
