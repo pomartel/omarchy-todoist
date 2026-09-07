@@ -72,7 +72,9 @@ function sortedTasks(tasks) {
 // " today" before sending, so a bare "Buy milk" defaults to due today
 // instead of no due date, without stomping on a date the user already typed
 // ("tomorrow", "next Monday", "3/5", "at 5pm", a deadline in {}, etc.).
-var DUE_HINT_RE = /\b(today|tonight|tomorrow|tmrw|tom|next|mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b|\d{1,2}[\/\-]\d{1,2}|\d{1,2}\s*(am|pm)\b|\bat\s+\d|\bin\s+\d+\s*(day|week|hour|min)|\{[^}]*\}/i
+// French date expressions are included so "lavage demain" is sent unchanged
+// to Todoist instead of receiving the fallback "today" suffix.
+var DUE_HINT_RE = /\b(today|tonight|tomorrow|tmrw|tom|next|mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|aujourd'hui|aujourd’hui|demain|apres-demain|après-demain|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|janvier|fevrier|février|mars|avril|mai|juin|juillet|aout|août|septembre|octobre|novembre|decembre|décembre)\b|\d{1,2}[\/\-]\d{1,2}|\d{1,2}\s*(am|pm)\b|\bat\s+\d|\bin\s+\d+\s*(day|week|hour|min)|\bà\s+\d|\bdans\s+\d+\s*(jour|jours|semaine|semaines|heure|heures|minute|minutes)\b|\{[^}]*\}/i
 
 function quickAddHasDueHint(text) {
   return DUE_HINT_RE.test(text)
