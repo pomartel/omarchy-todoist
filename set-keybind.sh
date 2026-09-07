@@ -5,7 +5,7 @@ set -euo pipefail
 
 COMBO="${1:?usage: set-keybind.sh \"CTRL + SUPER + Y\" | __REMOVE__}"
 FILE="$HOME/.config/hypr/bindings.lua"
-MARKER='omarchy-shell shell toggle io.github.aryan-techie.todoist'
+MARKER='omarchy-shell shell toggle omarchy-todoist'
 
 if [ ! -f "$FILE" ]; then
   echo "ERROR: $FILE not found" >&2

@@ -24,7 +24,7 @@ For anything beyond a small fix, open an issue first (or comment on an existing 
 
 1. Edit the files in your checkout.
 2. `omarchy plugin validate .` — this is the reliable structural check; `qmllint` doesn't work against this shell's runtime-only `qs.*` namespaces, so don't rely on it.
-3. Install (or symlink-free copy — `omarchy plugin validate` rejects symlinked plugin folders) your checkout to `~/.config/omarchy/plugins/io.github.aryan-techie.todoist/` for live testing.
+3. Install (or symlink-free copy — `omarchy plugin validate` rejects symlinked plugin folders) your checkout to `~/.config/omarchy/plugins/omarchy-todoist/` for live testing.
 4. Clear the QML cache and restart the shell to pick up changes cleanly: `rm -rf ~/.cache/quickshell/qmlcache && omarchy-restart-shell`.
 5. Check `qs log -p "$OMARCHY_PATH/shell"` for new warnings or errors.
 6. Test the actual behavior against a real Todoist account — a clean log doesn't mean the feature works, only that it loaded.

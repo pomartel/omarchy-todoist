@@ -92,7 +92,7 @@ omarchy plugin add https://github.com/aryan-techie/omarchy-todoist.git --enable
 Add the bar icon (skip this if `--enable` already placed it):
 
 ```
-omarchy bar put io.github.aryan-techie.todoist --section right
+omarchy bar put omarchy-todoist --section right
 ```
 
 ## Setup
@@ -114,7 +114,7 @@ point never shifts as your count changes.
 ## Usage
 
 - **Open/close**: click the bar icon, your keyboard shortcut (see below), or
-  `omarchy-shell shell toggle io.github.aryan-techie.todoist`.
+  `omarchy-shell shell toggle omarchy-todoist`.
 - Click **Today**, **Inbox**, or **All** to switch views.
 - Click a task's circle to mark it complete.
 - Type in the box at the top of the list and press Enter (or click **Add**)
@@ -190,7 +190,7 @@ Settings.** `set-keybind.sh` then:
    shortcut often).
 2. Adds or rewrites the one `o.bind(...)` line that toggles Todoist,
    identified by matching the exact `omarchy-shell shell toggle
-   io.github.aryan-techie.todoist` command string — no other line is ever
+   omarchy-todoist` command string — no other line is ever
    touched.
 3. Runs `hyprctl reload` and checks `hyprctl configerrors`.
 4. If the reload reports any config error, restores the backup and reloads
@@ -204,7 +204,7 @@ layout, the same as any other bar widget you add or remove through
 
 ## State files
 
-- `~/.local/state/omarchy/io.github.aryan-techie.todoist/settings.json` —
+- `~/.local/state/omarchy/omarchy-todoist/settings.json` —
   your Todoist API token, filter, quick-view, keyboard shortcut, and popup
   size. Created
   on first save; the file is `chmod 600`'d right after writing since it holds
@@ -216,7 +216,7 @@ layout, the same as any other bar widget you add or remove through
 
 ## Uninstalling
 
-`omarchy plugin remove io.github.aryan-techie.todoist` removes the plugin
+`omarchy plugin remove omarchy-todoist` removes the plugin
 files but does **not** touch the two locations above — if you set a keyboard
 shortcut, remove it from Settings first (or delete the matching `o.bind`
 line from `bindings.lua` yourself), and delete the state directory if you

@@ -12,7 +12,7 @@ import qs.Ui
 // Panel.qml; this file only reads it back to decide what the pill shows.
 BarWidget {
   id: root
-  moduleName: "io.github.aryan-techie.todoist"
+  moduleName: "omarchy-todoist"
 
   function injectPanel() {
     var target = panelLoader.item
@@ -92,7 +92,7 @@ BarWidget {
   }
 
   IpcHandler {
-    target: "io.github.aryan-techie.todoist"
+    target: "omarchy-todoist"
 
     function refresh(): void { root.broadcast("refresh") }
     function open(): void { root.open() }
