@@ -110,6 +110,9 @@ Panel {
   //      what the bar badge shows.
   property string barCountMode: "hide"
   property int barCountValue: 0
+  property int todayTaskCount: 0
+  property int inboxTaskCount: 0
+  property int allTaskCount: 0
 
   property string tokenDraft: ""
   property string quickAddText: ""
@@ -131,14 +134,14 @@ Panel {
   readonly property string quickViewLabel: root.quickView === "inbox" ? "INBOX"
     : root.quickView === "all" ? "TOUTES LES TÂCHES"
     : root.quickView === "custom" ? "FILTRE PERSONNALISÉ"
-    : "AUJOURD’HUI ET EN RETARD"
+    : "AUJ ET EN RETARD"
 
   // Short form for the header subtitle, where a narrow fixed column has less
   // room than the section-header use of quickViewLabel above.
   readonly property string quickViewShortLabel: root.quickView === "inbox" ? "INBOX"
     : root.quickView === "all" ? "TOUT"
     : root.quickView === "custom" ? "FILTRE"
-    : "AUJOURD’HUI"
+    : "AUJ"
 
   readonly property string emptyStateMessage: root.quickView === "inbox" ? "Inbox est vide."
     : root.quickView === "all" ? "Aucune tâche pour le moment."
@@ -533,12 +536,29 @@ Panel {
     root.errorText = ""
 
     runAuthedCurl(listProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", root.urlForView(root.quickView)])
+    root.refreshViewCounts()
     // A fetch just actually started — push both poll timers' next tick out
     // from here rather than from whenever the panel happened to open, so a
     // background/interval tick can't land moments after a refresh some
     // other action already triggered.
     openRefreshTimer.restart()
     backgroundRefreshTimer.restart()
+  }
+
+  function countForView(view) {
+    return view === "today" ? root.todayTaskCount
+      : view === "inbox" ? root.inboxTaskCount
+      : root.allTaskCount
+  }
+
+  function refreshViewCounts() {
+    if (root.apiToken === "") return
+    if (!todayCountProc.running)
+      runAuthedCurl(todayCountProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", root.urlForView("today")])
+    if (!inboxCountProc.running)
+      runAuthedCurl(inboxCountProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", root.urlForView("inbox")])
+    if (!allCountProc.running)
+      runAuthedCurl(allCountProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", root.urlForView("all")])
   }
 
   // ---- Bar count (Settings → Bar Count). Independent of whichever tab the
@@ -786,6 +806,42 @@ Panel {
     stderr: StdioCollector {
       id: barCountErr
       waitForEnd: true
+    }
+  }
+
+  function applyViewCount(view, raw) {
+    try {
+      var parsed = JSON.parse(String(raw || "").trim())
+      var count = (parsed && parsed.results) ? parsed.results.length : 0
+      if (view === "today") root.todayTaskCount = count
+      else if (view === "inbox") root.inboxTaskCount = count
+      else root.allTaskCount = count
+    } catch (e) {
+      // Keep the last known count when a background count request fails.
+    }
+  }
+
+  Process {
+    id: todayCountProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyViewCount("today", text)
+    }
+  }
+
+  Process {
+    id: inboxCountProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyViewCount("inbox", text)
+    }
+  }
+
+  Process {
+    id: allCountProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyViewCount("all", text)
     }
   }
 
@@ -1142,10 +1198,11 @@ Panel {
           if (t === "t" || t === "T") root.openTodoistWebsite()
           return
         }
-        if (t === "a" || t === "A") { quickAddField.forceActiveFocus(); return }
+        if (t === "q" || t === "Q") { quickAddField.forceActiveFocus(); return }
         if (t === "e" || t === "E") { root.startEditSelectedTask(); return }
         if (t === "t" || t === "T") { root.selectQuickView("today"); return }
         if (t === "i" || t === "I") { root.selectQuickView("inbox"); return }
+        if (t === "a" || t === "A") root.selectQuickView("all")
       }
 
       Flickable {
@@ -1397,7 +1454,7 @@ Panel {
               NavButton {
                 id: barCountTodayButton
                 width: barCountRow.cellWidth
-                text: "Aujourd’hui"
+                text: "Auj"
                 selected: root.barCountMode === "today"
                 onClicked: root.setBarCountMode("today")
               }
@@ -1758,7 +1815,7 @@ Panel {
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               options: ["today", "inbox", "all"].map(function(v) {
-                var label = v === "today" ? "Aujourd’hui" : v === "inbox" ? "Inbox" : "Tout"
+                var label = v === "today" ? "Auj" : v === "inbox" ? "Inbox" : "Tout"
                 if (root.quickView === v) label += " (" + root.taskCount + ")"
                 return { value: v, label: label }
               })
@@ -1960,14 +2017,14 @@ Panel {
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.bodySmall
                     text: "Tab / Maj+Tab — parcourir Aujourd’hui → Inbox → Tout\n"
-                      + "t / i — accéder à Aujourd’hui / Inbox\n"
+                      + "t / i / a — accéder à Auj / Inbox / Tout\n"
                       + "p — afficher/masquer les réglages\n"
                       + "↑/↓ ou k/j — déplacer la sélection\n"
                       + "Entrée — ouvrir la tâche dans Todoist\n"
                       + "Espace — marquer comme terminée\n"
                       + "e — modifier le titre\n"
                       + "x — supprimer la tâche\n"
-                      + "a — accéder à Ajouter une tâche\n"
+                      + "q — accéder à Ajouter une tâche\n"
                       + "r — actualiser\n"
                       + "Échap — revenir / fermer\n"
                       + "? — afficher/masquer cette aide"

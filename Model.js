@@ -31,11 +31,51 @@ function todayIsoDate() {
   return now.getFullYear() + "-" + pad2(now.getMonth() + 1) + "-" + pad2(now.getDate())
 }
 
-// Prefers Todoist's own human phrasing ("tomorrow at 10:00") and only falls
-// back to the raw date when a task has a due date but no string form.
+var FRENCH_MONTHS = [
+  "janvier", "février", "mars", "avril", "mai", "juin",
+  "juillet", "août", "septembre", "octobre", "novembre", "décembre"
+]
+
+function localDateFromIso(dateStr) {
+  var s = isoDatePrefix(dateStr)
+  var parts = s.split("-")
+  if (parts.length !== 3) return null
+  return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
+}
+
+function naturalDueDateLabel(dateStr) {
+  var dueDate = localDateFromIso(dateStr)
+  if (!dueDate || isNaN(dueDate.getTime())) return ""
+  var today = localDateFromIso(todayIsoDate())
+  var dayCount = Math.round((dueDate.getTime() - today.getTime()) / 86400000)
+  if (dayCount === -1) return "Hier"
+  if (dayCount === 0) return "Aujourd’hui"
+  if (dayCount === 1) return "Demain"
+  if (dayCount === 2) return "Après-demain"
+  if (dayCount < 0) return "Il y a " + Math.abs(dayCount) + " jours"
+  if (dayCount < 21) {
+    if (dayCount % 7 === 0) return "Dans " + (dayCount / 7) + " semaine" + (dayCount === 7 ? "" : "s")
+    return "Dans " + dayCount + " jours"
+  }
+  return "Le " + dueDate.getDate() + " " + FRENCH_MONTHS[dueDate.getMonth()]
+    + (dueDate.getFullYear() !== today.getFullYear() ? " " + dueDate.getFullYear() : "")
+}
+
+function dueTimeLabel(task) {
+  var rawDate = task && task.due ? String(task.due.datetime || task.due.date || "") : ""
+  if (rawDate.indexOf("T") === -1) return ""
+  var time = rawDate.substring(11, 16)
+  if (!/^\d{2}:\d{2}$/.test(time)) return ""
+  var parts = time.split(":")
+  var hour = Number(parts[0])
+  var minute = Number(parts[1])
+  return " à " + hour + " h" + (minute !== 0 ? " " + pad2(minute) : "")
+}
+
 function taskDueLabel(task) {
   if (!task || !task.due) return ""
-  return task.due.string || isoDatePrefix(task.due.date)
+  var label = naturalDueDateLabel(task.due.date)
+  return label !== "" ? label + dueTimeLabel(task) : (task.due.string || isoDatePrefix(task.due.date))
 }
 
 function taskIsOverdue(task) {
