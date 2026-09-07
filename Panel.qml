@@ -1831,6 +1831,8 @@ Panel {
               focusable: false
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
+              fontSize: Style.font.caption
+              spacing: Style.spacing.xs
               options: ["today", "tomorrow", "inbox", "all"].map(function(v) {
                 var label = v === "today" ? "Auj" : v === "tomorrow" ? "Demain" : v === "inbox" ? "Inbox" : "Tout"
                 label += " (" + root.countForView(v) + ")"
