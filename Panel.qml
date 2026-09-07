@@ -138,14 +138,6 @@ Panel {
     : root.quickView === "custom" ? "FILTRE PERSONNALISÉ"
     : "AUJ ET EN RETARD"
 
-  // Short form for the header subtitle, where a narrow fixed column has less
-  // room than the section-header use of quickViewLabel above.
-  readonly property string quickViewShortLabel: root.quickView === "inbox" ? "INBOX"
-    : root.quickView === "tomorrow" ? "DEMAIN"
-    : root.quickView === "all" ? "TOUT"
-    : root.quickView === "custom" ? "FILTRE"
-    : "Aujourd’hui"
-
   readonly property string emptyStateMessage: root.quickView === "inbox" ? "Inbox est vide."
     : root.quickView === "tomorrow" ? "Rien à faire demain."
     : root.quickView === "all" ? "Aucune tâche pour le moment."
@@ -176,13 +168,6 @@ Panel {
     var isOverdue = Model.taskIsOverdue(root.tasks[index])
     if (index > 0 && Model.taskIsOverdue(root.tasks[index - 1]) === isOverdue) return ""
     return isOverdue ? ("EN RETARD · " + root.overdueCount) : ("AUJOURD’HUI · " + root.todayDueCount)
-  }
-
-  readonly property string headerMeta: {
-    if (root.apiToken === "") return "NON CONNECTÉ"
-    if (root.settingsView) return "RÉGLAGES"
-    if (root.loading && root.tasks.length === 0) return "CHARGEMENT…"
-    return root.quickViewShortLabel
   }
 
   readonly property string barCountModeLabel: root.barCountMode === "today" ? "aujourd’hui"
@@ -1261,11 +1246,7 @@ Panel {
             width: parent.width
             height: titleRow.implicitHeight
 
-            // Icon beside a title+subtitle Column (not icon+title as one
-            // Row with the subtitle spanning full width below both) — the
-            // subtitle needs to sit directly under "Todoist" specifically,
-            // not under the icon, same as the Wi-Fi panel's own header
-            // (heroIcon beside heroLabels, not above it).
+            // Icon beside the title, matching the Wi-Fi panel's own header.
             Row {
               id: titleRow
               anchors.left: parent.left
@@ -1288,7 +1269,6 @@ Panel {
               Column {
                 anchors.verticalCenter: parent.verticalCenter
                 width: titleRow.width - headerIcon.width - titleRow.spacing
-                spacing: 2
 
                 Text {
                   text: "Todoist"
@@ -1298,17 +1278,6 @@ Panel {
                   color: root.contentForeground
                 }
 
-                Text {
-                  width: parent.width
-                  visible: text !== ""
-                  text: root.headerMeta
-                  elide: Text.ElideRight
-                  color: Qt.darker(root.contentForeground, 1.4)
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption
-                  font.bold: true
-                  font.letterSpacing: 1.2
-                }
               }
             }
 
