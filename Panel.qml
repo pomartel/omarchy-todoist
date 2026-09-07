@@ -1816,7 +1816,7 @@ Panel {
               fontFamily: root.contentFontFamily
               options: ["today", "inbox", "all"].map(function(v) {
                 var label = v === "today" ? "Auj" : v === "inbox" ? "Inbox" : "Tout"
-                if (root.quickView === v) label += " (" + root.taskCount + ")"
+                label += " (" + root.countForView(v) + ")"
                 return { value: v, label: label }
               })
               value: root.quickView
