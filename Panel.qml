@@ -1816,31 +1816,54 @@ Panel {
               }
             }
 
-            // Native segmented control (same shared component the built-in
-            // panels use, e.g. wifi's DNS-provider chips). Tab/Shift+Tab
-            // still cycles views through PanelKeyCatcher's own handling
-            // (onTabRequested -> cycleQuickView(), Panel.qml's
-            // PanelKeyCatcher block) rather than real Qt focus traversal —
-            // focusable: false keeps this control out of that focus chain
-            // entirely so it can't double-handle Tab or steal activeFocus
-            // from keyCatcher.
-            ButtonGroup {
+            // Equal-width view buttons keep the tabs aligned with the
+            // full-width quick-add field above. Tab/Shift+Tab still cycles
+            // views through PanelKeyCatcher rather than Qt focus traversal.
+            Row {
+              id: quickViewRow
               width: parent.width
               visible: root.apiToken !== ""
               height: visible ? implicitHeight : 0
               clip: true
-              focusable: false
-              foreground: root.contentForeground
-              fontFamily: root.contentFontFamily
-              fontSize: Style.font.caption
               spacing: Style.spacing.xs
-              options: ["today", "tomorrow", "inbox", "all"].map(function(v) {
-                var label = v === "today" ? "Auj" : v === "tomorrow" ? "Demain" : v === "inbox" ? "Inbox" : "Tout"
-                label += " (" + root.countForView(v) + ")"
-                return { value: v, label: label }
-              })
-              value: root.quickView
-              onChanged: function(v) { root.selectQuickView(v) }
+              readonly property real cellWidth: (width - spacing * 3) / 4
+
+              Button {
+                width: quickViewRow.cellWidth
+                text: "Auj (" + root.countForView("today") + ")"
+                selected: root.quickView === "today"
+                bordered: true
+                focusable: false
+                fontSize: Style.font.caption
+                onClicked: root.selectQuickView("today")
+              }
+              Button {
+                width: quickViewRow.cellWidth
+                text: "Demain (" + root.countForView("tomorrow") + ")"
+                selected: root.quickView === "tomorrow"
+                bordered: true
+                focusable: false
+                fontSize: Style.font.caption
+                onClicked: root.selectQuickView("tomorrow")
+              }
+              Button {
+                width: quickViewRow.cellWidth
+                text: "Inbox (" + root.countForView("inbox") + ")"
+                selected: root.quickView === "inbox"
+                bordered: true
+                focusable: false
+                fontSize: Style.font.caption
+                onClicked: root.selectQuickView("inbox")
+              }
+              Button {
+                width: quickViewRow.cellWidth
+                text: "Tout (" + root.countForView("all") + ")"
+                selected: root.quickView === "all"
+                bordered: true
+                focusable: false
+                fontSize: Style.font.caption
+                onClicked: root.selectQuickView("all")
+              }
             }
 
             PanelSeparator {
