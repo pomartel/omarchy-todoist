@@ -31,9 +31,8 @@ function todayIsoDate() {
   return now.getFullYear() + "-" + pad2(now.getMonth() + 1) + "-" + pad2(now.getDate())
 }
 
-var FRENCH_MONTHS = [
-  "janvier", "février", "mars", "avril", "mai", "juin",
-  "juillet", "août", "septembre", "octobre", "novembre", "décembre"
+var FRENCH_WEEKDAYS = [
+  "Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"
 ]
 
 function localDateFromIso(dateStr) {
@@ -51,14 +50,8 @@ function naturalDueDateLabel(dateStr) {
   if (dayCount === -1) return "Hier"
   if (dayCount === 0) return "Aujourd’hui"
   if (dayCount === 1) return "Demain"
-  if (dayCount === 2) return "Après-demain"
   if (dayCount < 0) return "Il y a " + Math.abs(dayCount) + " jours"
-  if (dayCount < 21) {
-    if (dayCount % 7 === 0) return "Dans " + (dayCount / 7) + " semaine" + (dayCount === 7 ? "" : "s")
-    return "Dans " + dayCount + " jours"
-  }
-  return "Le " + dueDate.getDate() + " " + FRENCH_MONTHS[dueDate.getMonth()]
-    + (dueDate.getFullYear() !== today.getFullYear() ? " " + dueDate.getFullYear() : "")
+  return FRENCH_WEEKDAYS[dueDate.getDay()]
 }
 
 function dueTimeLabel(task) {
