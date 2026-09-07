@@ -374,7 +374,7 @@ Panel {
     if (root.selectedTaskIndex < 0 || root.selectedTaskIndex >= root.tasks.length) return
     var task = root.tasks[root.selectedTaskIndex]
     if (!task || !task.id) return
-    openUrlProc.command = ["xdg-open", "https://app.todoist.com/app/task/" + encodeURIComponent(task.id)]
+    openUrlProc.command = ["omarchy-launch-or-focus-webapp", "brave-app.todoist", "https://app.todoist.com/app/task/" + encodeURIComponent(task.id)]
     openUrlProc.running = true
     root.close()
   }
