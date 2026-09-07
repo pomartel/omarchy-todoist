@@ -5,7 +5,7 @@
   "version": "1.14.0",
   "author": "aryan-techie",
   "license": "MIT",
-  "description": "Todoist task count in the bar, with a panel to view due/overdue tasks, check them off, and quick-add new ones.",
+  "description": "Compteur de tâches Todoist dans la barre, avec un panneau pour afficher les tâches à faire ou en retard, les terminer et en ajouter rapidement.",
   "kinds": [
     "bar-widget"
   ],
@@ -14,7 +14,7 @@
   },
   "barWidget": {
     "displayName": "Todoist",
-    "description": "Task count pill with a quick task list popup",
+    "description": "Pastille indiquant le nombre de tâches avec une fenêtre contextuelle pour les consulter rapidement",
     "category": "Productivity",
     "allowMultiple": false,
     "defaultSection": "right"

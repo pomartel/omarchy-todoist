@@ -60,11 +60,11 @@ BarWidget {
   readonly property string barCountModeLabel: panelLoader.item ? panelLoader.item.barCountModeLabel : ""
 
   readonly property string tooltipText: {
-    if (!root.hasToken) return "Todoist — not connected"
+    if (!root.hasToken) return "Todoist — non connecté"
     if (root.barCountMode === "hide") {
       return root.taskCount > 0
-        ? ("Todoist — " + root.taskCount + (root.taskCount === 1 ? " task" : " tasks"))
-        : "Todoist — all clear"
+        ? ("Todoist — " + root.taskCount + (root.taskCount === 1 ? " tâche" : " tâches"))
+        : "Todoist — tout est en ordre"
     }
     return "Todoist — " + root.barCountValue + " " + root.barCountModeLabel
   }
