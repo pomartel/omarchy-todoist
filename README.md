@@ -66,7 +66,7 @@ constraints, and a few things that didn't work the first time.
   `#Project`, `@label`, and natural-language due dates (`tomorrow at 5pm`,
   `next Monday`) all work exactly like typing into Todoist itself. A bare
   task with no date in it (`Buy milk`) defaults to due **today**.
-- **Today / Inbox / All** quick-view tabs above the list, plus a custom
+- **Today / Tomorrow / Inbox / All** quick-view tabs above the list, plus a custom
   [Todoist filter](https://www.todoist.com/help/articles/introduction-to-filters-V98wIH)
   field in Settings for anything more specific (defaults to `today | overdue`).
 - Settings view (gear icon) to paste your API token and manage the above.
@@ -132,7 +132,7 @@ The whole panel is operable without a mouse:
 | Key | Action |
 | --- | --- |
 | `Escape` | Back out of Settings to the task list (works from any Settings field too); press again to close the panel. While the Add-a-task box has focus, just leaves the box instead |
-| `Tab` / `Shift+Tab` | Cycle Today → Inbox → All. Inside Settings, instead walks every control in order — token field, Save/Remove token, filter field + Apply, keybind buttons, and the General/Advanced buttons and steppers — scrolling as needed to keep the focused control in view |
+| `Tab` / `Shift+Tab` | Cycle Today → Tomorrow → Inbox → All. Inside Settings, instead walks every control in order — token field, Save/Remove token, filter field + Apply, keybind buttons, and the General/Advanced buttons and steppers — scrolling as needed to keep the focused control in view |
 | `t` / `i` | Jump straight to the Today or Inbox view. Inside Settings, `t` opens Todoist in the browser instead |
 | `a` | Focus the Add-a-task field |
 | `p` | Toggle Settings open/closed |

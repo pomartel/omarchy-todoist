@@ -28,7 +28,7 @@ Panel {
 
   property string apiToken: ""
   property string filterQuery: "today | overdue"
-  // "today" | "inbox" | "all" | "custom" — the three tabs plus whatever the
+  // "today" | "tomorrow" | "inbox" | "all" | "custom" — the four tabs plus whatever the
   // free-form filter field in Settings last applied.
   property string quickView: "today"
   property bool settingsLoaded: false
@@ -111,6 +111,7 @@ Panel {
   property string barCountMode: "hide"
   property int barCountValue: 0
   property int todayTaskCount: 0
+  property int tomorrowTaskCount: 0
   property int inboxTaskCount: 0
   property int allTaskCount: 0
 
@@ -132,6 +133,7 @@ Panel {
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
 
   readonly property string quickViewLabel: root.quickView === "inbox" ? "INBOX"
+    : root.quickView === "tomorrow" ? "DEMAIN"
     : root.quickView === "all" ? "TOUTES LES TÂCHES"
     : root.quickView === "custom" ? "FILTRE PERSONNALISÉ"
     : "AUJ ET EN RETARD"
@@ -139,11 +141,13 @@ Panel {
   // Short form for the header subtitle, where a narrow fixed column has less
   // room than the section-header use of quickViewLabel above.
   readonly property string quickViewShortLabel: root.quickView === "inbox" ? "INBOX"
+    : root.quickView === "tomorrow" ? "DEMAIN"
     : root.quickView === "all" ? "TOUT"
     : root.quickView === "custom" ? "FILTRE"
     : "AUJ"
 
   readonly property string emptyStateMessage: root.quickView === "inbox" ? "Inbox est vide."
+    : root.quickView === "tomorrow" ? "Rien à faire demain."
     : root.quickView === "all" ? "Aucune tâche pour le moment."
     : root.quickView === "custom" ? "Aucune tâche ne correspond à ce filtre."
     : "Rien à faire. Tout est en ordre."
@@ -227,7 +231,7 @@ Panel {
     try { parsed = JSON.parse(text || "{}") } catch (e) { parsed = {} }
     if (typeof parsed.apiToken === "string") root.apiToken = parsed.apiToken
     if (typeof parsed.filter === "string") root.filterQuery = Model.sanitizeFilter(parsed.filter)
-    if (typeof parsed.quickView === "string" && ["today", "inbox", "all", "custom"].indexOf(parsed.quickView) !== -1)
+    if (typeof parsed.quickView === "string" && ["today", "tomorrow", "inbox", "all", "custom"].indexOf(parsed.quickView) !== -1)
       root.quickView = parsed.quickView
     if (typeof parsed.keybind === "string") root.keybindCombo = parsed.keybind
     if (typeof parsed.panelWidth === "number") root.panelWidth = Math.max(260, Math.min(700, parsed.panelWidth))
@@ -380,7 +384,7 @@ Panel {
     refresh()
   }
 
-  readonly property var quickViewOrder: ["today", "inbox", "all"]
+  readonly property var quickViewOrder: ["today", "tomorrow", "inbox", "all"]
 
   function cycleQuickView(direction) {
     var idx = root.quickViewOrder.indexOf(root.quickView)
@@ -520,6 +524,7 @@ Panel {
   function urlForView(view) {
     if (view === "all") return root.apiBase + "/tasks"
     var query = view === "inbox" ? "#Inbox"
+      : view === "tomorrow" ? "tomorrow"
       : view === "custom" ? root.filterQuery
       : "today | overdue"
     return root.apiBase + "/tasks/filter?query=" + encodeURIComponent(query) + "&lang=fr"
@@ -547,6 +552,7 @@ Panel {
 
   function countForView(view) {
     return view === "today" ? root.todayTaskCount
+      : view === "tomorrow" ? root.tomorrowTaskCount
       : view === "inbox" ? root.inboxTaskCount
       : root.allTaskCount
   }
@@ -555,6 +561,8 @@ Panel {
     if (root.apiToken === "") return
     if (!todayCountProc.running)
       runAuthedCurl(todayCountProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", root.urlForView("today")])
+    if (!tomorrowCountProc.running)
+      runAuthedCurl(tomorrowCountProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", root.urlForView("tomorrow")])
     if (!inboxCountProc.running)
       runAuthedCurl(inboxCountProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", root.urlForView("inbox")])
     if (!allCountProc.running)
@@ -814,6 +822,7 @@ Panel {
       var parsed = JSON.parse(String(raw || "").trim())
       var count = (parsed && parsed.results) ? parsed.results.length : 0
       if (view === "today") root.todayTaskCount = count
+      else if (view === "tomorrow") root.tomorrowTaskCount = count
       else if (view === "inbox") root.inboxTaskCount = count
       else root.allTaskCount = count
     } catch (e) {
@@ -826,6 +835,14 @@ Panel {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.applyViewCount("today", text)
+    }
+  }
+
+  Process {
+    id: tomorrowCountProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyViewCount("tomorrow", text)
     }
   }
 
@@ -1814,8 +1831,8 @@ Panel {
               focusable: false
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
-              options: ["today", "inbox", "all"].map(function(v) {
-                var label = v === "today" ? "Auj" : v === "inbox" ? "Inbox" : "Tout"
+              options: ["today", "tomorrow", "inbox", "all"].map(function(v) {
+                var label = v === "today" ? "Auj" : v === "tomorrow" ? "Demain" : v === "inbox" ? "Inbox" : "Tout"
                 label += " (" + root.countForView(v) + ")"
                 return { value: v, label: label }
               })
@@ -2016,7 +2033,7 @@ Panel {
                     color: root.contentForeground
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.bodySmall
-                    text: "Tab / Maj+Tab — parcourir Aujourd’hui → Inbox → Tout\n"
+                    text: "Tab / Maj+Tab — parcourir Auj → Demain → Inbox → Tout\n"
                       + "t / i / a — accéder à Auj / Inbox / Tout\n"
                       + "p — afficher/masquer les réglages\n"
                       + "↑/↓ ou k/j — déplacer la sélection\n"
