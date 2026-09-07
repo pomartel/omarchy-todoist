@@ -133,7 +133,8 @@ The whole panel is operable without a mouse:
 | --- | --- |
 | `Escape` | Back out of Settings to the task list (works from any Settings field too); press again to close the panel. While the Add-a-task box has focus, just leaves the box instead |
 | `Tab` / `Shift+Tab` | Cycle Today → Inbox → All. Inside Settings, instead walks every control in order — token field, Save/Remove token, filter field + Apply, keybind buttons, and the General/Advanced buttons and steppers — scrolling as needed to keep the focused control in view |
-| `t` / `i` / `a` | Jump straight to the Today, Inbox, or All view. Inside Settings, `t` opens Todoist in the browser instead |
+| `t` / `i` | Jump straight to the Today or Inbox view. Inside Settings, `t` opens Todoist in the browser instead |
+| `a` | Focus the Add-a-task field |
 | `p` | Toggle Settings open/closed |
 | `↑`/`↓` or `k`/`j` | Move the selection up/down the task list |
 | `Enter` | Open the selected task on the Todoist website, then close the panel |
