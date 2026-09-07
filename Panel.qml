@@ -180,23 +180,11 @@ Panel {
   readonly property bool headerStatsVisible: root.apiToken !== "" && !root.settingsView
     && !(root.loading && root.tasks.length === 0)
 
-  // ---- Rotating header subtitle ("trail of fading text" — same mechanism
-  //      as the built-in Wi-Fi panel's connection-phrase cycler). Three
-  //      static messages cover the states where there's nothing to cycle
-  //      through; otherwise a phrase list rotates on a timer (see the
-  //      Timer + SequentialAnimation near the header UI below).
-  readonly property var taskPhrases: [
-    "Counting boxes", "Chasing deadlines", "Sorting priorities",
-    "Clearing inbox", "Syncing lists", "Crossing off wins", "Hunting overdue",
-  ]
-  property int taskPhraseIndex: 0
-  readonly property string taskPhrase: root.taskPhrases[root.taskPhraseIndex % root.taskPhrases.length]
-
   readonly property string headerMeta: {
     if (root.apiToken === "") return "NOT CONNECTED"
     if (root.settingsView) return "SETTINGS"
     if (root.loading && root.tasks.length === 0) return "LOADING…"
-    return root.taskPhrase.toUpperCase()
+    return root.quickViewShortLabel
   }
 
   readonly property string syncedLabel: Model.formatRelativeTime(root.lastSyncedAt)
@@ -953,46 +941,6 @@ Panel {
     onTriggered: { root.refresh(); root.refreshBarCount() }
   }
 
-  // ---- Rotating header subtitle ("trail of fading text"), same mechanism
-  //      as the built-in Wi-Fi panel's connection-phrase cycler: a Timer
-  //      advances the phrase index, wrapped in a fade-out/fade-in on the
-  //      subtitle Text (taskPhraseText, in the header UI below) so the
-  //      swap itself is never an abrupt cut. Only runs while there's
-  //      actually a phrase to show (headerStatsVisible) — same gating
-  //      Wi-Fi uses ("only while actively connected").
-  Timer {
-    id: taskPhraseTimer
-    interval: 2800
-    running: root.headerStatsVisible
-    repeat: true
-    onTriggered: taskPhraseSwap.restart()
-  }
-
-  SequentialAnimation {
-    id: taskPhraseSwap
-    PropertyAnimation {
-      target: taskPhraseText; property: "opacity"
-      to: 0.0; duration: 180; easing.type: Easing.OutQuad
-    }
-    ScriptAction {
-      script: root.taskPhraseIndex = (root.taskPhraseIndex + 1) % root.taskPhrases.length
-    }
-    PropertyAnimation {
-      target: taskPhraseText; property: "opacity"
-      to: 1.0; duration: 260; easing.type: Easing.InQuad
-    }
-  }
-
-  // Stops a fade stuck mid-animation (e.g. Settings opened mid-cycle) and
-  // snaps the subtitle back to fully visible, matching the reference's own
-  // cleanup on its equivalent state change.
-  onHeaderStatsVisibleChanged: {
-    if (!root.headerStatsVisible) {
-      taskPhraseSwap.stop()
-      taskPhraseText.opacity = 1.0
-    }
-  }
-
   // ---- Settings' keyboard-navigable controls. Plain Button/PanelActionButton
   //      with focusable:true still won't cycle via Tab here: once a button
   //      genuinely holds Qt's activeFocus, PanelKeyCatcher's
@@ -1293,7 +1241,6 @@ Panel {
                 }
 
                 Text {
-                  id: taskPhraseText
                   width: parent.width
                   visible: text !== ""
                   text: root.headerMeta
