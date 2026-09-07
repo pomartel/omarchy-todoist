@@ -1218,6 +1218,7 @@ Panel {
         if (t === "q" || t === "Q") { quickAddField.forceActiveFocus(); return }
         if (t === "e" || t === "E") { root.startEditSelectedTask(); return }
         if (t === "t" || t === "T") { root.selectQuickView("today"); return }
+        if (t === "w" || t === "W") { root.selectQuickView("tomorrow"); return }
         if (t === "i" || t === "I") { root.selectQuickView("inbox"); return }
         if (t === "a" || t === "A") root.selectQuickView("all")
       }
@@ -2036,7 +2037,7 @@ Panel {
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.bodySmall
                     text: "Tab / Maj+Tab — parcourir Auj → Demain → Inbox → Tout\n"
-                      + "t / i / a — accéder à Auj / Inbox / Tout\n"
+                      + "t / w / i / a — accéder à Auj / Demain / Inbox / Tout\n"
                       + "p — afficher/masquer les réglages\n"
                       + "↑/↓ ou k/j — déplacer la sélection\n"
                       + "Entrée — ouvrir la tâche dans Todoist\n"
