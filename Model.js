@@ -100,6 +100,14 @@ function sortedTasks(tasks) {
   return list
 }
 
+// Keep subtasks out of the main list. Todoist exposes their parent through
+// parent_id (and the legacy parent field on older responses).
+function topLevelTasks(tasks) {
+  return (tasks || []).filter(function(task) {
+    return task && !task.parent_id && !task.parent
+  })
+}
+
 // Heuristic only — Quick Add's own NLP (see /tasks/quick) does the real
 // parsing server-side. This just decides whether *we* should tack on
 // " today" before sending, so a bare "Buy milk" defaults to due today
