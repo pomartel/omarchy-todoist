@@ -138,32 +138,6 @@ Panel {
     : root.quickView === "custom" ? "Aucune tâche ne correspond à ce filtre."
     : "Rien à faire. Tout est en ordre."
 
-  // ---- Overdue count. Computed across whatever's currently loaded in
-  //      root.tasks regardless of view, so the header stats grid's OVERDUE
-  //      cell means "overdue among what you're looking at" on every tab —
-  //      not just Today. The OVERDUE/TODAY row-anchored section split below
-  //      is still Today-only (taskSectionTitle gates that separately);
-  //      root.tasks is already sorted by due date ascending (Model
-  //      .sortedTasks), so every overdue task (due date < today) sorts
-  //      before every task actually due today — the two groups are already
-  //      contiguous there, no re-sort needed, just a row-anchored header
-  //      wherever the group changes. Same "header attached to the first row
-  //      of its group" pattern the built-in bluetooth panel uses for its
-  //      Paired/Available sections.
-  readonly property int overdueCount: {
-    var n = 0
-    for (var i = 0; i < root.tasks.length; i++) if (Model.taskIsOverdue(root.tasks[i])) n++
-    return n
-  }
-  readonly property int todayDueCount: root.quickView === "today" ? (root.tasks.length - root.overdueCount) : 0
-
-  function taskSectionTitle(index) {
-    if (root.quickView !== "today" || index < 0 || index >= root.tasks.length) return ""
-    var isOverdue = Model.taskIsOverdue(root.tasks[index])
-    if (index > 0 && Model.taskIsOverdue(root.tasks[index - 1]) === isOverdue) return ""
-    return isOverdue ? ("EN RETARD · " + root.overdueCount) : ("AUJOURD’HUI · " + root.todayDueCount)
-  }
-
   readonly property string barCountModeLabel: root.barCountMode === "today" ? "aujourd’hui"
     : root.barCountMode === "inbox" ? "dans Inbox"
     : root.barCountMode === "all" ? "au total"
@@ -1778,6 +1752,7 @@ Panel {
                 id: quickAddField
                 width: parent.width
                 enabled: root.apiToken !== ""
+                font.pixelSize: Style.font.caption
                 placeholderText: "Ajouter une tâche… (p1, #Projet, demain à 17 h)"
                 text: root.quickAddText
                 onTextChanged: root.quickAddText = text
@@ -1858,7 +1833,6 @@ Panel {
                 id: delegateItem
                 required property var modelData
                 required property int index
-                readonly property string sectionTitle: root.taskSectionTitle(index)
                 width: taskListView.width
                 height: delegateColumn.implicitHeight
 
@@ -1866,20 +1840,6 @@ Panel {
                   id: delegateColumn
                   width: parent.width
                   spacing: Style.spacing.sm
-
-                  PanelSeparator {
-                    visible: delegateItem.index > 0 && delegateItem.sectionTitle !== ""
-                    height: visible ? implicitHeight : 0
-                    foreground: root.contentForeground
-                  }
-
-                  PanelSectionHeader {
-                    visible: delegateItem.sectionTitle !== ""
-                    height: visible ? implicitHeight : 0
-                    text: delegateItem.sectionTitle
-                    foreground: root.contentForeground
-                    fontFamily: root.contentFontFamily
-                  }
 
                   TaskRow {
                     id: delegateRow
