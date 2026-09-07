@@ -144,7 +144,7 @@ Panel {
     : root.quickView === "tomorrow" ? "DEMAIN"
     : root.quickView === "all" ? "TOUT"
     : root.quickView === "custom" ? "FILTRE"
-    : "AUJ"
+    : "Aujourd’hui"
 
   readonly property string emptyStateMessage: root.quickView === "inbox" ? "Inbox est vide."
     : root.quickView === "tomorrow" ? "Rien à faire demain."
