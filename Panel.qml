@@ -981,7 +981,7 @@ Panel {
     // gap next to plain text. A bit more room on all four sides fixes it.
     padding: Style.space(20)
 
-    PanelKeyCatcher {
+    TodoistPanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
       clip: true
@@ -1033,7 +1033,7 @@ Panel {
       onDeleteRequested: {
         if (!root.settingsView) root.requestDeleteSelected()
       }
-      onTextKey: function(t) {
+      onTextKey: function(t, modifiers) {
         if (t === "?") { root.helpOpen = !root.helpOpen; return }
         if (t === "r" || t === "R") { root.refresh(); return }
         if (t === "p" || t === "P") { root.settingsView = !root.settingsView; return }
@@ -1043,18 +1043,19 @@ Panel {
         }
         if (t === "q" || t === "Q") { quickAddField.forceActiveFocus(); return }
         if (t === "e" || t === "E") { root.startEditSelectedTask(); return }
+        var ctrl = (modifiers & Qt.ControlModifier) !== 0
         if (t === "a" || t === "A") {
-          if (root.selectedTask()) root.setSelectedTaskDue("today")
+          if (ctrl) root.setSelectedTaskDue("today")
           else root.selectQuickView("today")
           return
         }
         if (t === "d" || t === "D") {
-          if (root.selectedTask()) root.setSelectedTaskDue("tomorrow")
+          if (ctrl) root.setSelectedTaskDue("tomorrow")
           else root.selectQuickView("tomorrow")
           return
         }
         if (t === "i" || t === "I") {
-          if (root.selectedTask()) root.setSelectedTaskDue(null)
+          if (ctrl) root.setSelectedTaskDue(null)
           else root.selectQuickView("inbox")
           return
         }
@@ -1675,7 +1676,7 @@ Panel {
                     font.pixelSize: Style.font.bodySmall
                     text: "Tab / Maj+Tab — parcourir Auj → Demain → Inbox → Tout\n"
                       + "a / d / i / t — accéder à Auj / Demain / Inbox / Tout\n"
-                      + "a / d / i (tâche sélectionnée) — échéance aujourd’hui / demain / aucune\n"
+                      + "Ctrl+a / Ctrl+d / Ctrl+i (tâche sélectionnée) — échéance aujourd’hui / demain / aucune\n"
                       + "p — afficher/masquer les réglages\n"
                       + "↑/↓ ou k/j — déplacer la sélection\n"
                       + "Entrée — ouvrir la tâche dans Todoist\n"
