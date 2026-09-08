@@ -7,13 +7,6 @@ function safeTrim(value) {
   return String(value === undefined || value === null ? "" : value).trim()
 }
 
-// Todoist filter query (e.g. "today | overdue"). Falls back to the default
-// due/overdue view whenever the user clears the field.
-function sanitizeFilter(filter) {
-  var trimmed = safeTrim(filter)
-  return trimmed === "" ? "today | overdue" : trimmed
-}
-
 function pad2(n) {
   return n < 10 ? "0" + n : String(n)
 }

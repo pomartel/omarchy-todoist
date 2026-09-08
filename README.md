@@ -39,7 +39,6 @@ constraints, and a few things that didn't work the first time.
 - [Setup](#setup)
 - [Usage](#usage)
   - [Keyboard controls](#keyboard-controls)
-  - [Keyboard shortcut](#keyboard-shortcut)
 - [External dependencies and system-level modifications](#external-dependencies-and-system-level-modifications)
 - [State files](#state-files)
 - [Uninstalling](#uninstalling)
@@ -66,12 +65,8 @@ constraints, and a few things that didn't work the first time.
   `#Project`, `@label`, and natural-language due dates (`tomorrow at 5pm`,
   `next Monday`) all work exactly like typing into Todoist itself. A bare
   task with no date in it (`Buy milk`) defaults to due **today**.
-- **Today / Tomorrow / Inbox / All** quick-view tabs above the list, plus a custom
-  [Todoist filter](https://www.todoist.com/help/articles/introduction-to-filters-V98wIH)
-  field in Settings for anything more specific (defaults to `today | overdue`).
+- **Today / Tomorrow / Inbox / All** quick-view tabs above the list.
 - Settings view (gear icon) to paste your API token and manage the above.
-- Optional global keyboard shortcut (**Ctrl+Super+Y** by default, or record
-  your own) to toggle the panel from anywhere — no mouse required.
 - Refreshes immediately whenever you open the popup, and whenever you add,
   complete, edit, or delete a task — not just on a timer. Otherwise polls
   every 2 minutes while the popup's open, or every 20 minutes in the
@@ -113,15 +108,15 @@ point never shifts as your count changes.
 
 ## Usage
 
-- **Open/close**: click the bar icon, your keyboard shortcut (see below), or
+- **Open/close**: click the bar icon or run
   `omarchy-shell shell toggle omarchy-todoist`.
 - Click **Today**, **Inbox**, or **All** to switch views.
 - Click a task's circle to mark it complete.
 - Type in the box at the top of the list and press Enter (or click **Add**)
   to create a task — see Quick Add syntax above (`p1`, `#Project`, dates).
 - The gear icon (or `p`) opens Settings, organized into **Account**,
-  **Default filter**, **Keyboard shortcut**, **General** (Refresh now,
-  Keyboard shortcuts), and **Advanced** (popup size) sections.
+  **Bar Count**, **General** (Refresh now, Keyboard shortcuts), and
+  **Advanced** (popup size) sections.
 - Middle-click the bar icon to refresh without opening the panel, or press
   `r` while the panel's open.
 
@@ -132,7 +127,7 @@ The whole panel is operable without a mouse:
 | Key | Action |
 | --- | --- |
 | `Escape` | Back out of Settings to the task list (works from any Settings field too); press again to close the panel. While the Add-a-task box has focus, just leaves the box instead |
-| `Tab` / `Shift+Tab` | Cycle Today → Tomorrow → Inbox → All. Inside Settings, instead walks every control in order — token field, Save/Remove token, filter field + Apply, keybind buttons, and the General/Advanced buttons and steppers — scrolling as needed to keep the focused control in view |
+| `Tab` / `Shift+Tab` | Cycle Today → Tomorrow → Inbox → All. Inside Settings, instead walks every control in order — token field, Save/Remove token, bar count, and the General/Advanced buttons and steppers — scrolling as needed to keep the focused control in view |
 | `a` / `d` / `i` / `t` | Jump straight to the Today, Tomorrow, Inbox, or All view. When a task is selected, `a` sets its due date to today, `d` to tomorrow, and `i` removes its due date. Inside Settings, `t` opens Todoist in the browser instead |
 | `p` | Toggle Settings open/closed |
 | `↑`/`↓` or `k`/`j` | Move the selection up/down the task list |
@@ -147,79 +142,39 @@ The whole panel is operable without a mouse:
 Completing a task strikes it through and dims it for a moment before it
 disappears from the list, so the click reads as "done" rather than "vanished."
 
-Typing in the token, filter, or quick-add fields (or recording a shortcut)
-temporarily suspends these so normal typing works. `x` for delete matches
+Typing in the token or quick-add fields temporarily suspends these so normal
+typing works. `x` for delete matches
 this shell's own convention (see `Ui/PanelKeyCatcher.qml`) rather than the
 physical Delete key, which has no printable character for a panel's key
 handler to see.
 
-### Keyboard shortcut
-
-In Settings, click **Ctrl+Super+Y** to use that shortcut, or **Record
-custom…** to press your own combo (any number of Super/Ctrl/Alt/Shift plus
-one key). Applying it edits `~/.config/hypr/bindings.lua` — the file is
-backed up first, Hyprland is reloaded, and if the reload reports any config
-error the backup is restored automatically. **Remove** takes the line back
-out the same safe way. No shortcut is set until you explicitly choose one
-here; the plugin never touches your Hyprland config on its own.
-
-Note: pressing the shortcut again while the panel is open closes it — that's
-the built-in way to close the panel from the keyboard. Your existing
-"close window" keybind is untouched and still closes whatever app window is
-focused, not this panel (that's a Hyprland layer-shell limitation shared by
-every panel in the shell, not something specific to Todoist).
-
 ## External dependencies and system-level modifications
 
-This plugin runs `curl`, `mkdir`, `chmod`, `bash`, `awk`, `cp`, `xdg-open`
-(only when you press Enter on a task, to open it in your browser), and
-(only for the optional keyboard shortcut) `hyprctl` via Quickshell's
-`Process` — all standard on any Omarchy install, no extra packages required.
+This plugin runs `curl`, `mkdir`, `chmod`, and `xdg-open` (only when you press
+Enter on a task, to open it in your browser) via Quickshell's `Process` — all
+standard on any Omarchy install, no extra packages required.
 `curl` is the only thing that talks to the network; every request goes
 straight to `https://api.todoist.com/api/v1/` with your token in an
 `Authorization: Bearer` header. Nothing else is contacted, and nothing runs
 with elevated
 privileges.
 
-**The only system file this plugin can modify is
-`~/.config/hypr/bindings.lua`, and only if you set a keyboard shortcut from
-Settings.** `set-keybind.sh` then:
-
-1. Backs up `bindings.lua` to `bindings.lua.bak.<unix-timestamp>` (not
-   auto-deleted — clean these up yourself periodically if you change the
-   shortcut often).
-2. Adds or rewrites the one `o.bind(...)` line that toggles Todoist,
-   identified by matching the exact `omarchy-shell shell toggle
-   omarchy-todoist` command string — no other line is ever
-   touched.
-3. Runs `hyprctl reload` and checks `hyprctl configerrors`.
-4. If the reload reports any config error, restores the backup and reloads
-   again — a bad shortcut can't leave Hyprland in a broken state.
-
-This never happens automatically — only when you click **Ctrl+Super+Y**,
-**Record custom…** + **Apply**, or **Remove** in Settings. Adding/removing
-the bar icon itself only touches your own `~/.config/omarchy/shell.json` bar
+Adding/removing the bar icon only touches your own `~/.config/omarchy/shell.json` bar
 layout, the same as any other bar widget you add or remove through
 `omarchy bar`.
 
 ## State files
 
 - `~/.local/state/omarchy/omarchy-todoist/settings.json` —
-  your Todoist API token, filter, quick-view, keyboard shortcut, and popup
-  size. Created
+  your Todoist API token, quick-view, bar count, and popup size. Created
   on first save; the file is `chmod 600`'d right after writing since it holds
   a secret. Delete it (or use **Remove token** in Settings) to disconnect the
   plugin from your account.
-- `~/.config/hypr/bindings.lua.bak.<timestamp>` — backups from every
-  keyboard-shortcut change (see above). Safe to delete once you're happy with
-  your shortcut.
 
 ## Uninstalling
 
 `omarchy plugin remove omarchy-todoist` removes the plugin
-files but does **not** touch the two locations above — if you set a keyboard
-shortcut, remove it from Settings first (or delete the matching `o.bind`
-line from `bindings.lua` yourself), and delete the state directory if you
+files but does **not** delete the state directory; remove it separately if you
 want your token gone too.
 
 ## Todoist API

@@ -27,9 +27,7 @@ Panel {
   readonly property string settingsPath: stateDir + "/settings.json"
 
   property string apiToken: ""
-  property string filterQuery: "today | overdue"
-  // "today" | "tomorrow" | "inbox" | "all" | "custom" — the four tabs plus whatever the
-  // free-form filter field in Settings last applied.
+  // "today" | "tomorrow" | "inbox" | "all" — the four quick views.
   property string quickView: "today"
   property bool settingsLoaded: false
   property bool settingsView: true
@@ -117,22 +115,12 @@ Panel {
   property bool quickAddSubmitting: false
   property var actionQueue: []
 
-  // ---- Keyboard shortcut (Settings → Keyboard shortcut). Empty means no
-  //      shortcut has been wired into ~/.config/hypr/bindings.lua yet.
-  property string keybindCombo: ""
-  property bool recordingKeybind: false
-  property string pendingKeybindCombo: ""
-  property string keybindRecordError: ""
-  property string keybindApplyStatus: ""
-  property string keybindApplyError: ""
-
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
 
   readonly property string emptyStateMessage: root.quickView === "inbox" ? "Inbox est vide."
     : root.quickView === "tomorrow" ? "Rien à faire demain."
     : root.quickView === "all" ? "Aucune tâche pour le moment."
-    : root.quickView === "custom" ? "Aucune tâche ne correspond à ce filtre."
     : "Rien à faire. Tout est en ordre."
 
   readonly property string barCountModeLabel: root.barCountMode === "today" ? "aujourd’hui"
@@ -180,10 +168,8 @@ Panel {
     var parsed = {}
     try { parsed = JSON.parse(text || "{}") } catch (e) { parsed = {} }
     if (typeof parsed.apiToken === "string") root.apiToken = parsed.apiToken
-    if (typeof parsed.filter === "string") root.filterQuery = Model.sanitizeFilter(parsed.filter)
-    if (typeof parsed.quickView === "string" && ["today", "tomorrow", "inbox", "all", "custom"].indexOf(parsed.quickView) !== -1)
+    if (typeof parsed.quickView === "string" && ["today", "tomorrow", "inbox", "all"].indexOf(parsed.quickView) !== -1)
       root.quickView = parsed.quickView
-    if (typeof parsed.keybind === "string") root.keybindCombo = parsed.keybind
     if (typeof parsed.panelWidth === "number") root.panelWidth = Math.max(260, Math.min(700, parsed.panelWidth))
     if (typeof parsed.panelHeight === "number") root.panelHeight = Math.max(240, Math.min(800, parsed.panelHeight))
     if (typeof parsed.barCountMode === "string" && ["hide", "today", "inbox", "all"].indexOf(parsed.barCountMode) !== -1)
@@ -196,9 +182,7 @@ Panel {
   function persistSettings() {
     settingsFile.setText(JSON.stringify({
       apiToken: root.apiToken,
-      filter: root.filterQuery,
       quickView: root.quickView,
-      keybind: root.keybindCombo,
       panelWidth: root.panelWidth,
       panelHeight: root.panelHeight,
       barCountMode: root.barCountMode
@@ -228,16 +212,6 @@ Panel {
     persistSettings()
   }
 
-  function applyFilter(value) {
-    var next = Model.sanitizeFilter(value)
-    filterField.text = next
-    root.quickView = "custom"
-    if (next === root.filterQuery) { persistSettings(); refresh(); return }
-    root.filterQuery = next
-    persistSettings()
-    refresh()
-  }
-
   // ---- Popup size (Settings → Advanced).
   function setPanelWidth(width) {
     root.panelWidth = Math.max(260, Math.min(700, width))
@@ -254,19 +228,12 @@ Panel {
   //      via Keys.priority: BeforeItem, so relying on Qt's own chain would
   //      never see it) that Tab/Shift+Tab and Up/Down both walk while
   //      Settings is open. Conditionally-visible controls (Remove token,
-  //      the keybind recorder's two different button sets) are filtered in
-  //      or out here rather than kept as fixed slots.
+  //      conditionally visible controls are filtered in or out here rather
+  //      than kept as fixed slots.
   function settingsFocusChain() {
     var chain = [tokenField, saveTokenButton]
     if (root.apiToken !== "") chain.push(removeTokenButton)
-    chain.push(filterField, filterApplyButton)
     chain.push(barCountHideButton, barCountTodayButton, barCountInboxButton, barCountAllButton)
-    if (root.recordingKeybind) {
-      chain.push(applyKeybindButton, cancelKeybindButton)
-    } else {
-      chain.push(keybindDefaultButton, recordCustomButton)
-      if (root.keybindCombo !== "") chain.push(removeKeybindButton)
-    }
     // openTodoistButton is deliberately not part of the chain — it launches
     // an external browser, which can steal window focus from the panel
     // mid-navigation. Still reachable by mouse or the "t" shortcut.
@@ -323,8 +290,8 @@ Panel {
   }
 
   // ---- Quick views. Today/tomorrow fetch all active tasks and are filtered
-  //      locally so their dates use the machine timezone. Inbox and custom
-  //      keep using Todoist's filter endpoint; all hits plain /tasks.
+  //      locally so their dates use the machine timezone. Inbox uses
+  //      Todoist's filter endpoint; all hits plain /tasks.
   function selectQuickView(view) {
     if (view === root.quickView) return
     root.quickView = view
@@ -471,10 +438,7 @@ Panel {
   function urlForView(view) {
     if (view === "all" || view === "today" || view === "tomorrow")
       return root.apiBase + "/tasks"
-    var query = view === "inbox" ? "#Inbox & no due date"
-      : view === "tomorrow" ? "tomorrow"
-      : view === "custom" ? root.filterQuery
-      : "today | overdue"
+    var query = "#Inbox & no due date"
     return root.apiBase + "/tasks/filter?query=" + encodeURIComponent(query) + "&lang=fr"
   }
 
@@ -602,95 +566,6 @@ Panel {
     actionProc.pendingTaskId = taskId
     runAuthedCurl(actionProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", "-X", "POST",
       root.apiBase + "/tasks/" + encodeURIComponent(taskId) + "/close"])
-  }
-
-  // ---- Keyboard shortcut recording. Mirrors a stripped-down Hyprland key
-  //      combo into "MOD + MOD + KEY" form; set-keybind.sh does the actual
-  //      ~/.config/hypr/bindings.lua edit (backup + reload + auto-rollback).
-  function isBareModifier(key) {
-    return key === Qt.Key_Super_L || key === Qt.Key_Super_R || key === Qt.Key_Meta
-      || key === Qt.Key_Control || key === Qt.Key_Shift || key === Qt.Key_Alt || key === Qt.Key_AltGr
-  }
-
-  function hyprKeyName(key) {
-    if (key >= Qt.Key_A && key <= Qt.Key_Z) return String.fromCharCode(key)
-    if (key >= Qt.Key_0 && key <= Qt.Key_9) return String.fromCharCode(key)
-    if (key >= Qt.Key_F1 && key <= Qt.Key_F12) return "F" + (key - Qt.Key_F1 + 1)
-    var names = {}
-    names[Qt.Key_Space] = "SPACE"
-    names[Qt.Key_Return] = "RETURN"
-    names[Qt.Key_Enter] = "RETURN"
-    names[Qt.Key_Tab] = "TAB"
-    names[Qt.Key_Backspace] = "BACKSPACE"
-    names[Qt.Key_Comma] = "comma"
-    names[Qt.Key_Period] = "period"
-    names[Qt.Key_Minus] = "minus"
-    names[Qt.Key_Equal] = "equal"
-    names[Qt.Key_Slash] = "slash"
-    return names[key] || ""
-  }
-
-  function startRecordingKeybind() {
-    root.recordingKeybind = true
-    root.pendingKeybindCombo = ""
-    root.keybindRecordError = ""
-    root.keybindApplyStatus = ""
-  }
-
-  function cancelRecordingKeybind() {
-    root.recordingKeybind = false
-    root.pendingKeybindCombo = ""
-    root.keybindRecordError = ""
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
-  }
-
-  function handleKeybindRecordKey(event) {
-    if (event.key === Qt.Key_Escape && event.modifiers === Qt.NoModifier) {
-      root.cancelRecordingKeybind()
-      event.accepted = true
-      return
-    }
-    if (root.isBareModifier(event.key)) { event.accepted = true; return }
-
-    var mods = []
-    if (event.modifiers & Qt.MetaModifier) mods.push("SUPER")
-    if (event.modifiers & Qt.ControlModifier) mods.push("CTRL")
-    if (event.modifiers & Qt.AltModifier) mods.push("ALT")
-    if (event.modifiers & Qt.ShiftModifier) mods.push("SHIFT")
-
-    var keyStr = root.hyprKeyName(event.key)
-    if (keyStr === "") {
-      root.keybindRecordError = "Touche non prise en charge — essayez une lettre, un chiffre, une touche F ou un signe de ponctuation."
-      event.accepted = true
-      return
-    }
-    if (mods.length === 0) {
-      root.keybindRecordError = "Ajoutez une touche modificatrice (Super/Ctrl/Alt/Shift) — une touche seule perturberait la saisie partout."
-      event.accepted = true
-      return
-    }
-
-    root.keybindRecordError = ""
-    root.pendingKeybindCombo = mods.join(" + ") + " + " + keyStr
-    event.accepted = true
-  }
-
-  function applyKeybindCombo(combo) {
-    if (combo === "" || root.keybindApplyStatus === "applying") return
-    root.keybindApplyStatus = "applying"
-    root.keybindApplyError = ""
-    keybindProc.pendingApply = combo
-    keybindProc.command = ["bash", root.pluginDir + "/set-keybind.sh", combo]
-    keybindProc.running = true
-  }
-
-  function removeKeybindCombo() {
-    if (root.keybindCombo === "" || root.keybindApplyStatus === "applying") return
-    root.keybindApplyStatus = "applying"
-    root.keybindApplyError = ""
-    keybindProc.pendingApply = ""
-    keybindProc.command = ["bash", root.pluginDir + "/set-keybind.sh", "__REMOVE__"]
-    keybindProc.running = true
   }
 
   Component.onCompleted: {
@@ -913,28 +788,6 @@ Panel {
     onTriggered: root.flushCompletedRemovals()
   }
 
-  Process {
-    id: keybindProc
-    property string pendingApply: ""
-    stderr: StdioCollector {
-      id: keybindErr
-      waitForEnd: true
-    }
-    onExited: function(exitCode) {
-      if (exitCode === 0) {
-        root.keybindCombo = keybindProc.pendingApply
-        root.keybindApplyStatus = ""
-        root.keybindApplyError = ""
-        root.recordingKeybind = false
-        root.pendingKeybindCombo = ""
-        persistSettings()
-      } else {
-        root.keybindApplyStatus = "error"
-        root.keybindApplyError = (keybindErr.text || "").trim() || "Impossible d’appliquer le raccourci."
-      }
-    }
-  }
-
   FileView {
     id: settingsFile
     path: root.settingsPath
@@ -979,7 +832,7 @@ Panel {
   //      mechanism only intercepts for whichever item currently holds
   //      activeFocus — normally keyCatcher itself, never a focused
   //      descendant). Each control has to catch Tab/Backtab itself, same as
-  //      tokenField/filterField already do, so this wraps that once instead
+  //      tokenField already does, so this wraps that once instead
   //      of repeating it on every button.
   component NavButton: Button {
     focusable: true
@@ -1132,7 +985,7 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       clip: true
-      blocked: tokenField.activeFocus || filterField.activeFocus || quickAddField.activeFocus || root.recordingKeybind || root.editingTaskIndex !== -1 || root.helpOpen
+      blocked: tokenField.activeFocus || quickAddField.activeFocus || root.editingTaskIndex !== -1 || root.helpOpen
       // First Escape backs out of Settings to the task list; a second one
       // (now that settingsView is false) closes the panel.
       onCloseRequested: {
@@ -1360,49 +1213,6 @@ Panel {
             }
 
             PanelSectionHeader {
-              text: "FILTRE PAR DÉFAUT"
-              foreground: root.contentForeground
-              fontFamily: root.contentFontFamily
-            }
-
-            Text {
-              width: parent.width
-              text: "Syntaxe des filtres Todoist (ex. « today | overdue », « #Work & !subtask ») — utilisée comme vue « personnalisée »."
-              wrapMode: Text.WordWrap
-              color: Qt.darker(root.contentForeground, 1.3)
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.bodySmall
-            }
-
-            Row {
-              width: parent.width
-              spacing: Style.spacing.sm
-
-              TextField {
-                id: filterField
-                width: parent.width - filterApplyButton.width - Style.spacing.sm
-                activeFocusOnTab: false
-                text: root.filterQuery
-                onAccepted: root.applyFilter(text)
-                Keys.onPressed: function(event) {
-                  if (event.key === Qt.Key_Tab) { root.moveSettingsFocus(1); event.accepted = true }
-                  else if (event.key === Qt.Key_Backtab) { root.moveSettingsFocus(-1); event.accepted = true }
-                }
-                Keys.onEscapePressed: root.settingsView = false
-              }
-
-              NavButton {
-                id: filterApplyButton
-                text: "Appliquer"
-                onClicked: root.applyFilter(filterField.text)
-              }
-            }
-
-            PanelSeparator {
-              foreground: root.contentForeground
-            }
-
-            PanelSectionHeader {
               text: "COMPTEUR DE LA BARRE"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
@@ -1460,132 +1270,6 @@ Panel {
                 text: "Tout"
                 selected: root.barCountMode === "all"
                 onClicked: root.setBarCountMode("all")
-              }
-            }
-
-            PanelSeparator {
-              foreground: root.contentForeground
-            }
-
-            Column {
-              width: parent.width
-              spacing: Style.spacing.sm
-
-              PanelSectionHeader {
-                text: "RACCOURCI CLAVIER"
-                foreground: root.contentForeground
-                fontFamily: root.contentFontFamily
-              }
-
-              Text {
-                width: parent.width
-                text: root.keybindCombo !== "" ? ("Actuel : " + root.keybindCombo) : "Aucun raccourci défini."
-                color: Qt.darker(root.contentForeground, 1.3)
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.bodySmall
-              }
-
-              Row {
-                visible: !root.recordingKeybind
-                spacing: Style.spacing.sm
-
-                NavButton {
-                  id: keybindDefaultButton
-                  text: "Ctrl+Super+Y"
-                  selected: root.keybindCombo === "CTRL + SUPER + Y"
-                  enabled: root.keybindApplyStatus !== "applying" && root.keybindCombo !== "CTRL + SUPER + Y"
-                  onClicked: root.applyKeybindCombo("CTRL + SUPER + Y")
-                }
-
-                NavButton {
-                  id: recordCustomButton
-                  text: "Enregistrer un raccourci…"
-                  enabled: root.keybindApplyStatus !== "applying"
-                  onClicked: root.startRecordingKeybind()
-                }
-
-                NavButton {
-                  id: removeKeybindButton
-                  text: "Supprimer"
-                  visible: root.keybindCombo !== ""
-                  enabled: root.keybindApplyStatus !== "applying"
-                  onClicked: root.removeKeybindCombo()
-                }
-              }
-
-              Column {
-                visible: root.recordingKeybind
-                width: parent.width
-                spacing: Style.spacing.xs
-
-                Rectangle {
-                  width: parent.width
-                  height: Style.spacing.controlHeight + Style.spacing.sm * 2
-                  radius: Style.cornerRadius
-                  color: Style.hoverFillFor(root.contentForeground, Color.accent)
-                  border.width: 1
-                  border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.4)
-
-                  Text {
-                    anchors.centerIn: parent
-                    text: root.pendingKeybindCombo !== "" ? root.pendingKeybindCombo : "Appuyez sur un raccourci…"
-                    color: root.contentForeground
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.body
-                  }
-
-                  Item {
-                    id: keybindRecorder
-                    anchors.fill: parent
-                    focus: root.recordingKeybind
-                    Keys.onPressed: function(event) { root.handleKeybindRecordKey(event) }
-                  }
-                }
-
-                Text {
-                  width: parent.width
-                  text: root.keybindRecordError !== "" ? root.keybindRecordError : "Maintenez les touches modificatrices et appuyez sur une touche. Échap annule."
-                  color: root.keybindRecordError !== "" ? Color.urgent : Qt.darker(root.contentForeground, 1.4)
-                  wrapMode: Text.WordWrap
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.caption
-                }
-
-                Row {
-                  spacing: Style.spacing.sm
-
-                  NavButton {
-                    id: applyKeybindButton
-                    text: "Appliquer"
-                    enabled: root.pendingKeybindCombo !== "" && root.keybindApplyStatus !== "applying"
-                    onClicked: root.applyKeybindCombo(root.pendingKeybindCombo)
-                  }
-
-                  NavButton {
-                    id: cancelKeybindButton
-                    text: "Annuler"
-                    onClicked: root.cancelRecordingKeybind()
-                  }
-                }
-              }
-
-              Text {
-                visible: root.keybindApplyStatus === "error"
-                width: parent.width
-                text: root.keybindApplyError
-                color: Color.urgent
-                wrapMode: Text.WordWrap
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.bodySmall
-              }
-
-              Text {
-                width: parent.width
-                text: "S’applique immédiatement en modifiant ~/.config/hypr/bindings.lua (sauvegarde préalable) et en rechargeant Hyprland. Toute erreur annule automatiquement la modification."
-                color: Qt.darker(root.contentForeground, 1.5)
-                wrapMode: Text.WordWrap
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
               }
             }
 
