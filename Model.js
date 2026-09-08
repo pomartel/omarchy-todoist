@@ -31,6 +31,19 @@ function todayIsoDate() {
   return now.getFullYear() + "-" + pad2(now.getMonth() + 1) + "-" + pad2(now.getDate())
 }
 
+// A timed due date is returned as an ISO timestamp (often UTC), while a
+// date-only due date is returned as YYYY-MM-DD. Use the machine's local date
+// for timed tasks so the date and time stay in the same timezone.
+function localDueDateIso(task) {
+  if (!task || !task.due) return ""
+  var rawDate = String(task.due.datetime || task.due.date || "")
+  if (rawDate.indexOf("T") === -1) return isoDatePrefix(rawDate)
+  var dueDate = new Date(rawDate)
+  if (isNaN(dueDate.getTime())) return isoDatePrefix(rawDate)
+  return dueDate.getFullYear() + "-" + pad2(dueDate.getMonth() + 1)
+    + "-" + pad2(dueDate.getDate())
+}
+
 var FRENCH_WEEKDAYS = [
   "Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"
 ]
@@ -75,13 +88,13 @@ function dueTimeLabel(task) {
 
 function taskDueLabel(task) {
   if (!task || !task.due) return ""
-  var label = naturalDueDateLabel(task.due.date)
+  var label = naturalDueDateLabel(localDueDateIso(task))
   return label !== "" ? label + dueTimeLabel(task) : (task.due.string || isoDatePrefix(task.due.date))
 }
 
 function taskIsOverdue(task) {
   if (!task || !task.due || !task.due.date) return false
-  return isoDatePrefix(task.due.date) < todayIsoDate()
+  return localDueDateIso(task) < todayIsoDate()
 }
 
 // Overdue/due-soonest first, undated tasks last; priority breaks ties within
@@ -89,8 +102,8 @@ function taskIsOverdue(task) {
 function sortedTasks(tasks) {
   var list = (tasks || []).slice()
   list.sort(function(a, b) {
-    var aDue = a && a.due && a.due.date ? isoDatePrefix(a.due.date) : ""
-    var bDue = b && b.due && b.due.date ? isoDatePrefix(b.due.date) : ""
+    var aDue = localDueDateIso(a)
+    var bDue = localDueDateIso(b)
     if (aDue !== bDue) {
       if (aDue === "") return 1
       if (bDue === "") return -1
