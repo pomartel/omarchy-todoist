@@ -322,9 +322,9 @@ Panel {
     }
   }
 
-  // ---- Quick views. "today"/"inbox" hit /tasks/filter with a canned query;
-  //      "all" hits plain /tasks (no filter = every active task); "custom"
-  //      reuses whatever filter the Settings field last applied.
+  // ---- Quick views. Today/tomorrow fetch all active tasks and are filtered
+  //      locally so their dates use the machine timezone. Inbox and custom
+  //      keep using Todoist's filter endpoint; all hits plain /tasks.
   function selectQuickView(view) {
     if (view === root.quickView) return
     root.quickView = view
@@ -469,7 +469,8 @@ Panel {
   // Shared by refresh() (the popup's own list) and refreshBarCount() (the
   // bar badge's independent count) — same three endpoints either way.
   function urlForView(view) {
-    if (view === "all") return root.apiBase + "/tasks"
+    if (view === "all" || view === "today" || view === "tomorrow")
+      return root.apiBase + "/tasks"
     var query = view === "inbox" ? "#Inbox & no due date"
       : view === "tomorrow" ? "tomorrow"
       : view === "custom" ? root.filterQuery
@@ -721,7 +722,8 @@ Panel {
         try {
           var parsed = JSON.parse(raw)
           var results = (parsed && parsed.results) ? parsed.results : []
-          root.tasks = Model.sortedTasks(Model.topLevelTasks(results))
+          root.tasks = Model.sortedTasks(Model.tasksForView(
+            Model.topLevelTasks(results), root.quickView))
           root.errorText = ""
           root.lastSyncedAt = Date.now()
           // Keeps the bar badge's "same tab" fast path maximally fresh
@@ -758,7 +760,8 @@ Panel {
         try {
           var parsed = JSON.parse(raw)
           var results = (parsed && parsed.results) ? parsed.results : []
-          root.barCountValue = Model.topLevelTasks(results).length
+          root.barCountValue = Model.tasksForView(
+            Model.topLevelTasks(results), root.barCountMode).length
         } catch (e) {
           // Keep the last known value.
         }
@@ -774,7 +777,7 @@ Panel {
     try {
       var parsed = JSON.parse(String(raw || "").trim())
       var results = (parsed && parsed.results) ? parsed.results : []
-      var count = Model.topLevelTasks(results).length
+      var count = Model.tasksForView(Model.topLevelTasks(results), view).length
       if (view === "today") root.todayTaskCount = count
       else if (view === "tomorrow") root.tomorrowTaskCount = count
       else if (view === "inbox") root.inboxTaskCount = count

@@ -129,6 +129,23 @@ function topLevelTasks(tasks) {
   })
 }
 
+// Todoist's natural-language filter uses the account/API timezone, which can
+// disagree with the machine timezone used by the panel. Filter these two
+// quick views locally so a task stays in the same day as its displayed time.
+function tasksForView(tasks, view) {
+  if (view !== "today" && view !== "tomorrow") return (tasks || []).slice()
+  var today = todayIsoDate()
+  var tomorrow = localDateFromIso(today)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  var tomorrowIso = tomorrow.getFullYear() + "-" + pad2(tomorrow.getMonth() + 1)
+    + "-" + pad2(tomorrow.getDate())
+  return (tasks || []).filter(function(task) {
+    var dueDate = localDueDateIso(task)
+    if (dueDate === "") return false
+    return view === "today" ? dueDate <= today : dueDate === tomorrowIso
+  })
+}
+
 // Heuristic only — Quick Add's own NLP (see /tasks/quick) does the real
 // parsing server-side. This just decides whether *we* should tack on
 // " today" before sending, so a bare "Buy milk" defaults to due today
