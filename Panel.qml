@@ -1987,7 +1987,8 @@ Panel {
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.bodySmall
                     text: "Tab / Maj+Tab — parcourir Auj → Demain → Inbox → Tout\n"
-                      + "t / w / i / a — accéder à Auj / Demain / Inbox / Tout\n"
+                      + "a / d / i / t — accéder à Auj / Demain / Inbox / Tout\n"
+                      + "a / d / i (tâche sélectionnée) — échéance aujourd’hui / demain / aucune\n"
                       + "p — afficher/masquer les réglages\n"
                       + "↑/↓ ou k/j — déplacer la sélection\n"
                       + "Entrée — ouvrir la tâche dans Todoist\n"
@@ -1997,7 +1998,8 @@ Panel {
                       + "q — accéder à Ajouter une tâche\n"
                       + "r — actualiser\n"
                       + "Échap — revenir / fermer\n"
-                      + "? — afficher/masquer cette aide"
+                      + "? — afficher/masquer cette aide\n"
+                      + "Dans les réglages, t ouvre Todoist dans le navigateur"
                   }
                 }
               }
