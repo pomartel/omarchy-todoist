@@ -443,7 +443,7 @@ Panel {
     if (!task || !task.id || dueProc.running) return
 
     var payload = dueString === null
-      ? { due_string: null }
+      ? { due_string: "no date" }
       : { due_string: dueString, due_lang: "fr" }
     runAuthedCurl(dueProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", "-X", "POST",
       "-H", "Content-Type: application/json",
