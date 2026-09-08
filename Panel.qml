@@ -476,7 +476,7 @@ Panel {
   // bar badge's independent count) — same three endpoints either way.
   function urlForView(view) {
     if (view === "all") return root.apiBase + "/tasks"
-    var query = view === "inbox" ? "#Inbox"
+    var query = view === "inbox" ? "#Inbox & no due date"
       : view === "tomorrow" ? "tomorrow"
       : view === "custom" ? root.filterQuery
       : "today | overdue"
