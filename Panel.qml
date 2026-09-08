@@ -431,6 +431,26 @@ Panel {
       root.apiBase + "/tasks/" + encodeURIComponent(task.id)])
   }
 
+  // ---- Quick due-date actions for the selected task (a/d/i). Without a
+  //      selected task these keys keep their quick-view behavior below.
+  function selectedTask() {
+    if (root.selectedTaskIndex < 0 || root.selectedTaskIndex >= root.tasks.length) return null
+    return root.tasks[root.selectedTaskIndex]
+  }
+
+  function setSelectedTaskDue(dueString) {
+    var task = root.selectedTask()
+    if (!task || !task.id || dueProc.running) return
+
+    var payload = dueString === null
+      ? { due_string: null }
+      : { due_string: dueString, due_lang: "fr" }
+    runAuthedCurl(dueProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", "-X", "POST",
+      "-H", "Content-Type: application/json",
+      "-d", JSON.stringify(payload),
+      root.apiBase + "/tasks/" + encodeURIComponent(task.id)])
+  }
+
   // ---- Delete (the selected task, via "x" or a task row's delete button).
   //      Confirmed first — unlike completing, this can't be undone from here.
   function requestDeleteSelected() {
@@ -894,6 +914,18 @@ Panel {
   }
 
   Process {
+    id: dueProc
+    stderr: StdioCollector {
+      id: dueErr
+      waitForEnd: true
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) root.errorText = Model.errorMessageForExit(exitCode, dueErr.text)
+      root.refresh()
+    }
+  }
+
+  Process {
     id: openUrlProc
   }
 
@@ -1181,10 +1213,22 @@ Panel {
         }
         if (t === "q" || t === "Q") { quickAddField.forceActiveFocus(); return }
         if (t === "e" || t === "E") { root.startEditSelectedTask(); return }
-        if (t === "t" || t === "T") { root.selectQuickView("today"); return }
-        if (t === "w" || t === "W") { root.selectQuickView("tomorrow"); return }
-        if (t === "i" || t === "I") { root.selectQuickView("inbox"); return }
-        if (t === "a" || t === "A") root.selectQuickView("all")
+        if (t === "a" || t === "A") {
+          if (root.selectedTask()) root.setSelectedTaskDue("today")
+          else root.selectQuickView("today")
+          return
+        }
+        if (t === "d" || t === "D") {
+          if (root.selectedTask()) root.setSelectedTaskDue("tomorrow")
+          else root.selectQuickView("tomorrow")
+          return
+        }
+        if (t === "i" || t === "I") {
+          if (root.selectedTask()) root.setSelectedTaskDue(null)
+          else root.selectQuickView("inbox")
+          return
+        }
+        if (t === "t" || t === "T") root.selectQuickView("all")
       }
 
       Flickable {
