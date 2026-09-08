@@ -140,7 +140,7 @@ The whole panel is operable without a mouse:
 | `Enter` | Open the selected task on the Todoist website, then close the panel |
 | `Space` | Complete the selected task |
 | `e` | Edit the selected task's title in place |
-| `x` | Delete the selected task (asks for confirmation first) |
+| `x` | Delete the selected task immediately |
 | `q` | Jump into the Add-a-task box |
 | `r` | Refresh |
 | `?` | Toggle a shortcuts cheat-sheet overlay (also a button in Settings) |

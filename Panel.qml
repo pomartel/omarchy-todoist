@@ -65,9 +65,6 @@ Panel {
   property int selectedTaskIndex: -1
   property bool taskCursorActive: false
 
-  property string pendingDeleteTaskId: ""
-  property string pendingDeleteTaskContent: ""
-
   // Tasks mid-completion: closed on the server already, but kept in the
   // list (struck through, dimmed) for a moment so the click reads as
   // "done", not "vanished".
@@ -451,37 +448,14 @@ Panel {
       root.apiBase + "/tasks/" + encodeURIComponent(task.id)])
   }
 
-  // ---- Delete (the selected task, via "x" or a task row's delete button).
-  //      Confirmed first — unlike completing, this can't be undone from here.
+  // ---- Delete the selected task (via "x"). -----------------------------
   function requestDeleteSelected() {
     if (root.selectedTaskIndex < 0 || root.selectedTaskIndex >= root.tasks.length) return
     var task = root.tasks[root.selectedTaskIndex]
     if (!task) return
-    root.requestDeleteTask(task.id, task.content || "")
-  }
-
-  function requestDeleteTask(taskId, content) {
-    root.pendingDeleteTaskId = taskId
-    root.pendingDeleteTaskContent = content
-    confirmDialog.selectedIndex = 0
-    confirmDialog.opened = true
-  }
-
-  function cancelDeleteTask() {
-    confirmDialog.opened = false
-    root.pendingDeleteTaskId = ""
-    root.pendingDeleteTaskContent = ""
-  }
-
-  function confirmDeleteTask() {
-    confirmDialog.opened = false
-    var taskId = root.pendingDeleteTaskId
-    root.pendingDeleteTaskId = ""
-    root.pendingDeleteTaskContent = ""
-    if (taskId === "") return
-    root.tasks = root.tasks.filter(function(t) { return !t || t.id !== taskId })
+    root.tasks = root.tasks.filter(function(t) { return !t || t.id !== task.id })
     runAuthedCurl(deleteProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", "-X", "DELETE",
-      root.apiBase + "/tasks/" + encodeURIComponent(taskId)])
+      root.apiBase + "/tasks/" + encodeURIComponent(task.id)])
   }
 
   // ---- Task list. Every mutating action (add/complete/edit/delete/view
@@ -1155,7 +1129,7 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       clip: true
-      blocked: tokenField.activeFocus || filterField.activeFocus || quickAddField.activeFocus || root.recordingKeybind || confirmDialog.opened || root.editingTaskIndex !== -1 || root.helpOpen
+      blocked: tokenField.activeFocus || filterField.activeFocus || quickAddField.activeFocus || root.recordingKeybind || root.editingTaskIndex !== -1 || root.helpOpen
       // First Escape backs out of Settings to the task list; a second one
       // (now that settingsView is false) closes the panel.
       onCloseRequested: {
@@ -1941,29 +1915,8 @@ Panel {
         }
       }
 
-      // Overlay, declared after Flickable so it paints on top of it.
-      ConfirmDialog {
-        id: confirmDialog
-        anchors.fill: parent
-        message: "Supprimer « " + root.pendingDeleteTaskContent + " » ?"
-        confirmText: "Supprimer"
-        background: Color.popups.background
-        foreground: root.contentForeground
-        onCanceled: root.cancelDeleteTask()
-        onConfirmed: root.confirmDeleteTask()
-
-        Item {
-          anchors.fill: parent
-          focus: confirmDialog.opened
-          Keys.onPressed: function(event) {
-            confirmDialog.handleKey(event)
-            event.accepted = true
-          }
-        }
-      }
-
       // Shortcuts help, toggled by "?" or the header's "?" button. Declared
-      // last so it paints above everything, including the confirm dialog.
+      // last so it paints above everything else.
       Item {
         id: helpOverlay
         anchors.fill: parent
