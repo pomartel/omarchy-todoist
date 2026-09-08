@@ -63,11 +63,13 @@ function naturalDueDateLabel(dateStr) {
 function dueTimeLabel(task) {
   var rawDate = task && task.due ? String(task.due.datetime || task.due.date || "") : ""
   if (rawDate.indexOf("T") === -1) return ""
-  var time = rawDate.substring(11, 16)
-  if (!/^\d{2}:\d{2}$/.test(time)) return ""
-  var parts = time.split(":")
-  var hour = Number(parts[0])
-  var minute = Number(parts[1])
+  // Todoist returns due.datetime as an ISO timestamp (normally UTC). Parse
+  // it so the displayed time is converted to the user's local timezone
+  // instead of showing the timestamp's raw UTC hour.
+  var dueDate = new Date(rawDate)
+  if (isNaN(dueDate.getTime())) return ""
+  var hour = dueDate.getHours()
+  var minute = dueDate.getMinutes()
   return " à " + hour + " h" + (minute !== 0 ? " " + pad2(minute) : "")
 }
 
