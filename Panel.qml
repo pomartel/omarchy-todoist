@@ -325,6 +325,12 @@ Panel {
     })
   }
 
+  function selectTask(index) {
+    if (index < 0 || index >= root.tasks.length) return
+    root.selectedTaskIndex = index
+    root.taskCursorActive = true
+  }
+
   function activateSelectedTask() {
     if (root.selectedTaskIndex < 0 || root.selectedTaskIndex >= root.tasks.length) return
     var task = root.tasks[root.selectedTaskIndex]
@@ -900,6 +906,19 @@ Panel {
       radius: Style.cornerRadius
       visible: row.hasCursor
       color: Style.hoverFillFor(root.contentForeground, Color.accent)
+    }
+
+    // Selecting the row keeps mouse navigation consistent with the keyboard
+    // cursor. The checkbox remains above this area so its single click keeps
+    // completing the task, while a double click anywhere else completes it.
+    MouseArea {
+      anchors.fill: parent
+      acceptedButtons: Qt.LeftButton
+      onClicked: root.selectTask(row.rowIndex)
+      onDoubleClicked: {
+        root.selectTask(row.rowIndex)
+        root.requestComplete(row.task ? row.task.id : "")
+      }
     }
 
     PanelActionButton {
