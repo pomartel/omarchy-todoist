@@ -102,22 +102,6 @@ BarWidget {
     function toggle(): void { root.togglePanel() }
   }
 
-  // Réserve la place pour un compteur allant jusqu'à trois chiffres afin que
-  // la pastille et l'ancrage du popup ne bougent pas quand le nombre change
-  // de longueur (par exemple 9 → 10). En mode icône seul, la largeur reste
-  // naturellement fixe.
-  TextMetrics {
-    id: countWidthMetrics
-    font.family: root.bar ? root.bar.fontFamily : Style.font.family
-    font.pixelSize: Style.bar.iconFont
-    text: "999"
-  }
-
-  readonly property bool countVisible: root.hasToken && root.barCountMode !== "hide"
-  readonly property real reservedContentWidth: countVisible
-    ? Style.space(12) + Style.space(4) + countWidthMetrics.width
-    : Style.space(12)
-
   WidgetButton {
     id: button
     anchors.fill: parent
@@ -125,7 +109,9 @@ BarWidget {
     tooltipText: root.tooltipText
     labelVisible: false
     hasVisualContent: true
-    fixedWidth: root.vertical ? -1 : Math.ceil(root.reservedContentWidth + Style.spaceReal(horizontalMargin) * 2)
+    // Match qs-yadm: size the pill from the actual content plus one shared
+    // 12-unit inset, instead of adding horizontalMargin on both sides.
+    fixedWidth: root.vertical ? -1 : Math.ceil(contentRow.implicitWidth + Style.space(12))
     fixedHeight: root.vertical ? Math.ceil(contentRow.implicitHeight + Style.spaceReal(verticalPadding) * 2) : -1
 
     Row {
