@@ -112,6 +112,8 @@ point never shifts as your count changes.
   `omarchy-shell shell toggle omarchy-todoist`.
 - Click **Today**, **Inbox**, or **All** to switch views.
 - Click a task's circle to mark it complete.
+- Task titles render Markdown links. Ctrl-click a link to open it in your
+  default browser; a plain click selects the task.
 - Type in the box at the top of the list and press Enter (or click **Add**)
   to create a task — see Quick Add syntax above (`p1`, `#Project`, dates).
 - The gear icon (or `p`) opens Settings, organized into **Account**,

@@ -943,16 +943,39 @@ Panel {
       spacing: 2
 
       Text {
+        id: taskText
         visible: !row.editing
         height: visible ? implicitHeight : 0
         width: parent.width
         text: row.task ? row.task.content : ""
+        textFormat: Text.MarkdownText
+        linkColor: Color.accent
         opacity: row.completing ? 0.5 : 1.0
         font.strikeout: row.completing
         color: row.textColor
         wrapMode: Text.WordWrap
         font.family: root.contentFontFamily
         font.pixelSize: Style.font.body
+
+        MouseArea {
+          anchors.fill: parent
+          acceptedButtons: Qt.LeftButton
+          hoverEnabled: true
+          cursorShape: taskText.linkAt(mouseX, mouseY) !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor
+
+          onClicked: function(mouse) {
+            root.selectTask(row.rowIndex)
+            var link = taskText.linkAt(mouse.x, mouse.y)
+            if ((mouse.modifiers & Qt.ControlModifier) && link !== "")
+              Qt.openUrlExternally(link)
+          }
+          onDoubleClicked: function(mouse) {
+            root.selectTask(row.rowIndex)
+            // Ctrl-clicking a link must never complete its task.
+            if (!(mouse.modifiers & Qt.ControlModifier))
+              root.requestComplete(row.task ? row.task.id : "")
+          }
+        }
       }
 
       TextField {
