@@ -949,7 +949,8 @@ Panel {
         width: parent.width
         text: row.task ? row.task.content : ""
         textFormat: Text.MarkdownText
-        linkColor: Color.accent
+        // Markdown underlines links; keep the task's normal priority color.
+        linkColor: row.textColor
         opacity: row.completing ? 0.5 : 1.0
         font.strikeout: row.completing
         color: row.textColor
