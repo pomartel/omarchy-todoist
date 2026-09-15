@@ -7,6 +7,41 @@ function safeTrim(value) {
   return String(value === undefined || value === null ? "" : value).trim()
 }
 
+function escapeHtml(value) {
+  return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+}
+
+// Render task links as StyledText: Qt's Markdown renderer ignores linkColor.
+// Escape all task text and only emit anchors and explicit underlines.
+function taskContentHtml(content) {
+  var source = String(content || "")
+  var result = ""
+  var copied = 0
+  var pattern = /\[((?:\\.|[^\]\\])+)\]\(/g
+  var match
+  while ((match = pattern.exec(source)) !== null) {
+    var start = pattern.lastIndex
+    var end = start
+    var depth = 1
+    for (; end < source.length && depth > 0; end++) {
+      if (source[end] === "\\") { end++; continue }
+      if (source[end] === "(") depth++
+      if (source[end] === ")") depth--
+    }
+    if (depth !== 0) continue
+    var url = source.slice(start, end - 1).replace(/\\([()\\])/g, "$1")
+    if (!/^https?:\/\/[^\s<>]+$/i.test(url)) continue
+    var label = match[1].replace(/\\([\[\]\\])/g, "$1")
+    result += escapeHtml(source.slice(copied, match.index))
+    // StyledText does not decode HTML entities inside href attributes.
+    result += '<a href="' + url.replace(/"/g, "%22") + '"><u>' + escapeHtml(label) + '</u></a>'
+    copied = end
+    pattern.lastIndex = end
+  }
+  return (result + escapeHtml(source.slice(copied))).replace(/\n/g, "<br>")
+}
+
 function pad2(n) {
   return n < 10 ? "0" + n : String(n)
 }

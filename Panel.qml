@@ -947,9 +947,8 @@ Panel {
         visible: !row.editing
         height: visible ? implicitHeight : 0
         width: parent.width
-        text: row.task ? row.task.content : ""
-        textFormat: Text.MarkdownText
-        // Markdown underlines links; keep the task's normal priority color.
+        text: Model.taskContentHtml(row.task ? row.task.content : "")
+        textFormat: Text.StyledText
         linkColor: row.textColor
         opacity: row.completing ? 0.5 : 1.0
         font.strikeout: row.completing
