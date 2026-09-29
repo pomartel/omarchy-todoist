@@ -2,6 +2,10 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.18.4 — Text-only tabs
+
+- Remove tab icons, keeping labels, task counts, and equal widths.
+
 ## v1.18.3 — Task toolbar labels
 
 - Place the settings cog inside the add-task textbox, with reserved text padding.

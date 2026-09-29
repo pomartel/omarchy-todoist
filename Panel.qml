@@ -872,38 +872,12 @@ Panel {
 
   // ---- One task row: complete button + content + due label. ----------
   component ViewTab: Button {
-    id: tab
     property string label: ""
-    property string viewIcon: "today"
     property int tabIndex: -1
+    text: label
+    Accessible.name: label
     hasCursor: root.dragging && root.dragDrop !== null && root.dragDrop.tab === tabIndex
     horizontalPadding: Style.spacing.sm
-    // Keep the shell's button interactions and palette with custom vector content.
-    implicitWidth: tabContents.implicitWidth + horizontalPadding * 2
-      + _reservedBorderLeft + _reservedBorderRight
-    implicitHeight: tabContents.implicitHeight + verticalPadding * 2
-      + _reservedBorderTop + _reservedBorderBottom
-    Accessible.name: label
-    Row {
-      id: tabContents
-      anchors.centerIn: parent
-      spacing: Style.spacing.sm
-      ViewIcon {
-        name: tab.viewIcon
-        day: { root.lastSyncedAt; return new Date().getDate() }
-        color: tab.selected ? tab._selectedColor : tab.foreground
-        anchors.verticalCenter: parent.verticalCenter
-      }
-      Text {
-        text: tab.label
-        textFormat: Text.PlainText
-        color: tab.selected ? tab._selectedColor : tab.foreground
-        font.family: tab.fontFamily
-        font.pixelSize: tab.fontSize
-        font.bold: tab.selected
-        anchors.verticalCenter: parent.verticalCenter
-      }
-    }
   }
 
   component TaskRow: Item {
@@ -1603,7 +1577,6 @@ Panel {
                 id: todayViewButton
                 objectName: "todayViewButton"
                 tabIndex: 0
-                viewIcon: "today"
                 width: quickViewRow.cellWidth
                 label: "Aujourd’hui (" + root.countForView("today") + ")"
                 selected: root.quickView === "today"
@@ -1616,7 +1589,6 @@ Panel {
                 id: upcomingViewButton
                 objectName: "upcomingViewButton"
                 tabIndex: 1
-                viewIcon: "upcoming"
                 width: quickViewRow.cellWidth
                 tooltipText: "De demain aux six prochains jours (d)"
                 label: "Bientôt (" + root.countForView("upcoming") + ")"
@@ -1630,7 +1602,6 @@ Panel {
                 id: undatedViewButton
                 objectName: "undatedViewButton"
                 tabIndex: 2
-                viewIcon: "inbox"
                 width: quickViewRow.cellWidth
                 tooltipText: "Tâches sans date dans tous les projets (i)"
                 label: "Sans date (" + root.countForView("undated") + ")"
