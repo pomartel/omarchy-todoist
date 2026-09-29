@@ -2,6 +2,11 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.16.2 — Compact subtasks
+
+- Remove repeated parent titles from subtask rows; indentation conveys the hierarchy.
+- Reduce padding and gaps within each task tree while preserving separation between main tasks.
+
 ## v1.16.1 — Keep subtasks with their parent
 
 - Show each main task followed by its entire nested subtree, including undated subtasks.

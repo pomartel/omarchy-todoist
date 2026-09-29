@@ -78,7 +78,8 @@ constraints, and a few things that didn't work the first time.
   requests are coalesced. All pages are fetched before publishing a snapshot;
   Today, Tomorrow, All, and the bar count share those results. Inbox shows
   undated Inbox tasks. Active subtasks are included in views and counts,
-  nested directly beneath their parent, including undated subtasks and deeper
+  nested compactly beneath their parent, with indentation instead of repeated
+  parent names, including undated subtasks and deeper
   descendants. The main task determines the view and date group for its whole
   subtree; any distinct subtask due dates remain visible on the rows. Counts
   include every displayed task and subtask. Stored due dates are unchanged.

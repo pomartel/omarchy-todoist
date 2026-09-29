@@ -795,7 +795,10 @@ Panel {
       }
     }
 
-    height: Math.max(checkBtn.height, textColumn.implicitHeight) + Style.spacing.sm * 2
+    readonly property real rowTopPadding: task && task.subtaskDepth > 0 ? Style.spacing.xs : Style.spacing.sm
+    readonly property real rowBottomPadding: rowIndex + 1 < root.tasks.length
+      && root.tasks[rowIndex + 1].subtaskDepth > 0 ? Style.spacing.xs : Style.spacing.sm
+    height: Math.max(checkBtn.height, textColumn.implicitHeight) + rowTopPadding + rowBottomPadding
 
     Rectangle {
       anchors.fill: parent
@@ -822,7 +825,7 @@ Panel {
       id: checkBtn
       anchors.left: parent.left
       anchors.top: parent.top
-      anchors.topMargin: Style.spacing.sm
+      anchors.topMargin: row.rowTopPadding
       iconText: row.completing ? "●" : "○"
       tooltipText: "Marquer comme terminée (Espace)"
       foreground: row.textColor
@@ -836,19 +839,8 @@ Panel {
       anchors.leftMargin: Style.spacing.sm
       anchors.right: parent.right
       anchors.top: parent.top
-      anchors.topMargin: Style.spacing.sm
+      anchors.topMargin: row.rowTopPadding
       spacing: 2
-
-      Text {
-        width: parent.width
-        visible: row.task && row.task.subtaskDepth > 0
-        text: row.task && row.task.parentTitle ? "↳ " + row.task.parentTitle : "↳ Sous-tâche"
-        textFormat: Text.PlainText
-        color: root.secondaryForeground
-        font.family: root.contentFontFamily
-        font.pixelSize: Style.font.caption
-        elide: Text.ElideRight
-      }
 
       Text {
         id: taskText
@@ -1480,7 +1472,7 @@ Panel {
                     - quickViewRow.implicitHeight - taskListSeparator.implicitHeight
                     - taskColumn.spacing * 3)
                 : 0
-              spacing: Style.spacing.sm
+              spacing: 0
               clip: true
               boundsBehavior: Flickable.StopAtBounds
               interactive: contentHeight > height
@@ -1495,10 +1487,13 @@ Panel {
                 readonly property bool startsGroup: index === 0
                   || root.tasks[index - 1].dateGroup !== dateGroup
                 width: taskListView.width
-                height: delegateColumn.implicitHeight
+                height: delegateColumn.y + delegateColumn.implicitHeight
 
                 Column {
                   id: delegateColumn
+                  // Keep main-task separation, but visually join their subtasks.
+                  y: delegateItem.index > 0 && !delegateItem.startsGroup
+                    && delegateItem.modelData.subtaskDepth === 0 ? Style.spacing.sm : 0
                   width: parent.width
                   spacing: Style.spacing.sm
 
