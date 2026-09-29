@@ -134,6 +134,18 @@ point never shifts as your count changes.
   `omarchy-shell shell toggle omarchy-todoist`.
 - Click **Aujourd’hui**, **Bientôt**, or **Sans date** to switch views.
 - Click a task's circle to mark it complete.
+- Inline edits parse added metadata: `Réviser demain à 17h p1 #Travail`,
+  `Review next Monday at 5pm p2 #"Work projects"`, or `#Work\ projects`.
+  A preview shows recognized fields before Enter saves. Common French/English
+  days, relative dates, recurring dates, ISO dates, and times are supported;
+  use `date:"every last Friday at 2pm"` for other Todoist date expressions.
+  `sans date` / `no date` clears the due date. Time-only edits retain the current
+  day (or recurring schedule). Unspecified metadata and existing literal
+  keywords stay unchanged; quoted prose and Markdown links remain literal.
+  Project names must match exactly (case-insensitive) and uniquely. Moving a
+  task to another project makes it a root task there, with its descendants.
+  Failed edits restore the draft; if the content saves but the project move
+  fails, the error explicitly reports that partial result.
 - Task titles render Markdown links. Ctrl-click a link to open it in your
   default browser; a plain click selects the task.
 - Type in the box at the top of the list and press Enter (or click **Add**)
@@ -156,7 +168,7 @@ The whole panel is operable without a mouse:
 | `Ctrl` + `a` / `d` / `i` | For the selected task, set its due date to today, tomorrow, or none |
 | `p` | Toggle Settings open/closed |
 | `↑`/`↓` or `k`/`j` | Move the selection up/down the task list |
-| `Enter` or `e` | Edit the selected task's title in place; Enter saves while editing |
+| `Enter` or `e` | Edit the selected task and inline metadata; Enter saves while editing |
 | `Space` | Complete the selected task |
 | `o` | Open the selected task's page in Todoist, then close the panel |
 | `x` | Delete the selected task immediately |

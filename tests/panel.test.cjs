@@ -15,11 +15,12 @@ function harness() {
     quickAddText: '', fetchError: '', actionError: '', settingsError: '', lastSyncedAt: 0,
     barCountMode: 'all', stateReady: true, settingsLoaded: true, pendingSettings: '',
   };
-  const c = { root, Model: {}, Qt: { callLater(fn) { later.push(fn); } },
+  const c = { root, Model: {}, EditParser: {}, Qt: { callLater(fn) { later.push(fn); } },
     keyCatcher: {forceActiveFocus() {}}, quickAddField: {text: ''}, tokenField: {text: ''},
     completionRemovalTimer: timer, listProc: process(), actionProc: process(), settingsWriteProc: process(),
   };
   vm.createContext(c.Model); vm.runInContext(fs.readFileSync('Model.js', 'utf8'), c.Model);
+  vm.createContext(c.EditParser); vm.runInContext(fs.readFileSync('EditParser.js', 'utf8'), c.EditParser);
   vm.createContext(c);
   for (const match of source.matchAll(/^  function \w+\([^]*?^  }/gm)) {
     vm.runInContext(match[0], c);
@@ -298,4 +299,60 @@ test('sync errors in HTTP 200 responses are reported and refresh the snapshot',(
   r.enqueueAction('reorder','a',{datePayload:null,commands:[{uuid:'u'}]});
   r.finishAction(c.actionProc.action,0,'','{"sync_status":{"u":{"error":"invalid"}}}');
   assert.notEqual(r.actionError,'');assert.equal(r.pendingTaskIds.length,0);assert.equal(r.loading,true);
+});
+
+test('inline edit parses dates and priority on the existing task endpoint',()=>{
+  const {root:r,calls}=harness();r.allTasks=[task('a')];r.tasks=r.allTasks;r.selectedTaskIndex=0;
+  r.startEditSelectedTask();r.editDraft='a demain à 17h p1';r.commitEditTask();
+  const command=calls[0].command,payload=JSON.parse(command[command.indexOf('-d')+1]);
+  assert.match(command.at(-1),/\/tasks\/a$/);
+  assert.equal(payload.content,'a');assert.equal(payload.priority,4);assert.equal(payload.due_string,'demain à 17h');
+  assert.equal(command.includes('/tasks/quick'),false);
+});
+test('project edit reads all project pages before updating and moving the same ID',()=>{
+  const {root:r,c,calls}=harness();r.allTasks=[{...task('a'),project_id:'old'}];r.tasks=r.allTasks;r.selectedTaskIndex=0;
+  r.startEditSelectedTask();r.editDraft='a p2 #Work';r.commitEditTask();
+  const action=c.actionProc.action;
+  assert.match(calls[0].command.at(-1),/\/projects\?limit=200$/);
+  r.finishAction(action,0,'',JSON.stringify({results:[{id:'other',name:'Other'}],next_cursor:'page 2'}));
+  assert.match(calls[1].command.at(-1),/cursor=page%202/);
+  r.finishAction(action,0,'',JSON.stringify({results:[{id:'new',name:'Work'}],next_cursor:null}));
+  assert.match(calls[2].command.at(-1),/\/tasks\/a$/);
+  r.finishAction(action,0,'','{}');
+  assert.match(calls[3].command.at(-1),/\/tasks\/a\/move$/);
+  assert.deepEqual(JSON.parse(calls[3].command.at(-2)),{project_id:'new'});
+  r.finishAction(action,0,'','{}');assert.equal(r.actionBusy,false);assert.equal(r.actionError,'');
+});
+test('unknown project leaves the task unchanged and restores the edit draft',()=>{
+  const {root:r,c,calls}=harness();r.allTasks=[task('a')];r.tasks=r.allTasks;r.selectedTaskIndex=0;
+  r.startEditSelectedTask();r.editDraft='a demain #Missing';r.commitEditTask();
+  r.finishAction(c.actionProc.action,0,'',JSON.stringify({results:[],next_cursor:null}));
+  assert.equal(calls.some(x=>x.command.includes('POST')),false);
+  assert.equal(r.editingTaskId,'a');assert.equal(r.editDraft,'a demain #Missing');assert.match(r.actionError,/introuvable/);
+});
+test('invalid inline syntax stays in the editor and failed API edits restore drafts',()=>{
+  const {root:r,c,calls}=harness();r.allTasks=[task('a')];r.tasks=r.allTasks;r.selectedTaskIndex=0;
+  r.startEditSelectedTask();r.editDraft='p1 demain';r.commitEditTask();
+  assert.equal(calls.length,0);assert.equal(r.editingTaskId,'a');
+  r.editDraft='a demain';r.commitEditTask();r.finishAction(c.actionProc.action,22,'HTTP 400','');
+  assert.equal(r.editingTaskId,'a');assert.equal(r.editDraft,'a demain');
+});
+test('failed update stops the project move, and failed move reports partial success',()=>{
+  for(const stage of ['update','move']) {
+    const {root:r,c,calls}=harness();r.allTasks=[task('a')];r.tasks=r.allTasks;r.selectedTaskIndex=0;
+    r.startEditSelectedTask();r.editDraft='a #Work';r.commitEditTask();const action=c.actionProc.action;
+    r.finishAction(action,0,'',JSON.stringify({results:[{id:'new',name:'Work'}],next_cursor:null}));
+    if(stage==='move') r.finishAction(action,0,'','{}');
+    r.finishAction(action,22,'HTTP 500','');
+    assert.equal(r.editDraft,'a #Work');
+    if(stage==='update') assert.equal(calls.some(x=>x.command.at(-1).endsWith('/move')),false);
+    else assert.match(r.actionError,/Modifications enregistrées/);
+  }
+});
+test('changing accounts during project lookup prevents further edit stages',()=>{
+  const {root:r,c,calls}=harness();r.allTasks=[task('a')];r.tasks=r.allTasks;r.selectedTaskIndex=0;
+  r.startEditSelectedTask();r.editDraft='a #Work';r.commitEditTask();const action=c.actionProc.action;
+  r.resetAccount();r.apiToken='new-dummy';
+  r.finishAction(action,0,'',JSON.stringify({results:[{id:'new',name:'Work'}],next_cursor:null}));
+  assert.equal(calls.some(x=>x.command.includes('POST')),false);
 });

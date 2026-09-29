@@ -22,7 +22,7 @@ ShellRoot {
       Qt.callLater(Qt.quit)
     }
     function init() {
-      panel.cancelTaskDrag(); panel.actionBusy = false; panel.actionQueue = []; panel.pendingTaskIds = []
+      panel.cancelEditTask(); panel.cancelTaskDrag(); panel.actionBusy = false; panel.actionQueue = []; panel.pendingTaskIds = []
       panel.captured = []; panel.loading = false; panel.apiToken = "synthetic"; panel.settingsView = false
       panel.quickView = "today"; panel.controller.show()
       panel.allTasks = Array.from({length: 25}, function(_, i) {
@@ -47,6 +47,34 @@ ShellRoot {
     function payload() {
       var command = panel.captured[0]
       return JSON.parse(command[command.indexOf("-d") + 1])
+    }
+    function test_inline_edit_metadata() {
+      panel.selectedTaskIndex = 0
+      panel.startEditSelectedTask()
+      var field = findChild(panel, "editField_0")
+      tryCompare(field, "activeFocus", true)
+      field.text = "Synthetic task 0 demain à 17h p1"
+      wait(50)
+      grabImage(window.contentItem).save("/tmp/todoist-inline-edit.png")
+      keyClick(Qt.Key_Return)
+      compare(panel.editingTaskId, "")
+      compare(panel.captured.length, 1)
+      compare(payload().content, "Synthetic task 0")
+      compare(payload().due_string, "demain à 17h")
+      compare(payload().priority, 4)
+    }
+    function test_inline_edit_validation() {
+      panel.selectedTaskIndex = 0
+      panel.startEditSelectedTask()
+      var field = findChild(panel, "editField_0")
+      tryCompare(field, "activeFocus", true)
+      field.text = "demain p1"
+      keyClick(Qt.Key_Return)
+      compare(panel.editingTaskId, "0")
+      compare(panel.editDraft, "demain p1")
+      compare(panel.captured.length, 0)
+      keyClick(Qt.Key_Escape)
+      compare(panel.editingTaskId, "")
     }
     function test_hover_alignment_and_cursor() {
       var row = findChild(panel, "taskRow_0")

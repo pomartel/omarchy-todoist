@@ -2,6 +2,13 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.19.0 — Inline edit metadata
+
+- Parse French/English dates and times, p1–p4 priorities, and #Project when editing task names.
+- Preview recognized metadata; support quoted project names and explicit date:"…" expressions.
+- Preserve unspecified metadata and time-only edits' existing day; validate project names before saving.
+- Keep failed edit drafts available to correct or retry.
+
 ## v1.18.6 — Task hover feedback
 
 - Highlight task rows on hover and retain the normal pointer until dragging.

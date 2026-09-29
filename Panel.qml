@@ -5,6 +5,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
+import "EditParser.js" as EditParser
 
 // Todoist task list popup. Owns every bit of state BarWidget.qml reads back
 // (apiToken, taskCount) plus the curl processes that talk to the Todoist API
@@ -442,14 +443,63 @@ Panel {
     proc.stdinEnabled = false
   }
 
+  function editPlan(task, draft) {
+    return EditParser.parse(task, draft, Model.localDueDateIso(task))
+  }
+
   function commitEditTask() {
     var taskId = root.editingTaskId
     var content = Model.safeTrim(root.editDraft)
-    cancelEditTask()
-    if (taskId === "" || content === "") return
+    if (taskId === "") return
     var task = root.allTasks.filter(function(t) { return t.id === taskId })[0]
     if (!task) { root.actionError = "Cette tâche n’est plus disponible."; return }
-    if (content !== task.content) enqueueAction("edit", taskId, { content: content })
+    if (content === task.content) { cancelEditTask(); return }
+    try {
+      var plan = editPlan(task, content)
+      root.actionError = ""
+      cancelEditTask()
+      if (plan.projectName) enqueueAction("smartEdit", taskId, plan, content)
+      else enqueueAction("edit", taskId, plan.update, content)
+    } catch (e) {
+      root.actionError = String(e.message || e)
+    }
+  }
+
+  function fetchEditProjects(action, cursor) {
+    var url = root.apiBase + "/projects?limit=200"
+    if (cursor) url += "&cursor=" + encodeURIComponent(cursor)
+    runAuthedCurl(actionProc, ["curl", "-q", "-fsS", "--max-time", "10", "-K", "-", url])
+  }
+
+  function postEditStage(action, path, payload) {
+    runAuthedCurl(actionProc, ["curl", "-q", "-fsS", "--max-time", "10", "-K", "-",
+      "-X", "POST", "-H", "Content-Type: application/json", "-d", JSON.stringify(payload),
+      root.apiBase + "/tasks/" + encodeURIComponent(action.taskId) + path])
+  }
+
+  function advanceEdit(action, stdoutText) {
+    if (action.stage === "projects") {
+      var page = EditParser.parseProjectPage(stdoutText)
+      action.projects = action.projects.concat(page.results)
+      if (page.next_cursor !== null) {
+        if (action.cursors.indexOf(page.next_cursor) !== -1) throw new Error("Curseur des projets répété.")
+        action.cursors.push(page.next_cursor)
+        fetchEditProjects(action, page.next_cursor)
+        return true
+      }
+      action.projectId = EditParser.resolveProject(action.projects, action.payload.projectName)
+      var task = root.allTasks.find(function(t) { return t.id === action.taskId })
+      action.moveNeeded = task && String(task.project_id) !== action.projectId
+      action.stage = "update"
+      postEditStage(action, "", action.payload.update)
+      return true
+    }
+    if (action.stage === "update" && action.moveNeeded) {
+      action.stage = "move"
+      postEditStage(action, "/move", { project_id: action.projectId })
+      return true
+    }
+    return false
   }
 
   function setSelectedTaskDue(dueString) {
@@ -579,6 +629,13 @@ Panel {
     root.actionQueue = root.actionQueue.slice(1)
     root.actionBusy = true
     actionProc.action = action
+    if (action.kind === "smartEdit") {
+      action.stage = "projects"
+      action.projects = []
+      action.cursors = []
+      fetchEditProjects(action, "")
+      return
+    }
     var url = root.apiBase + "/tasks/" + encodeURIComponent(action.taskId)
     if (action.kind === "create") url = root.apiBase + "/tasks/quick"
     else if (action.kind === "complete") url += "/close"
@@ -596,6 +653,10 @@ Panel {
   }
 
   function finishAction(action, exitCode, stderrText, stdoutText) {
+    if (action.kind === "smartEdit" && action.generation === root.accountGeneration && exitCode === 0) {
+      try { if (advanceEdit(action, stdoutText)) return }
+      catch (e) { exitCode = -1; stderrText = String(e.message || e) }
+    }
     if (action.kind === "reorder" && action.generation === root.accountGeneration && exitCode === 0) {
       if (action.dateStage) {
         action.dateStage = false
@@ -621,6 +682,12 @@ Panel {
       }
       if (exitCode !== 0) {
         root.actionError = Model.errorMessageForExit(exitCode, stderrText)
+        if (action.kind === "smartEdit" && action.stage === "move")
+          root.actionError = "Modifications enregistrées, mais le changement de projet a échoué. " + root.actionError
+        if ((action.kind === "edit" || action.kind === "smartEdit") && action.draft && root.editingTaskId === "") {
+          root.editDraft = action.draft
+          root.editingTaskId = action.taskId
+        }
       }
       if (action.kind === "complete" && exitCode === 0) {
         // Keep the row until the server confirms AND its feedback has been shown.
@@ -1044,6 +1111,8 @@ Panel {
 
       TextField {
         id: editField
+        objectName: "editField_" + row.task.id
+        placeholderText: "Titre, demain à 17h, p1, #Projet"
         placeholderTextColor: root.secondaryForeground
         visible: row.editing
         height: visible ? implicitHeight : 0
@@ -1051,6 +1120,20 @@ Panel {
         onTextChanged: if (row.editing) root.editDraft = text
         onAccepted: root.commitEditTask()
         Keys.onEscapePressed: root.cancelEditTask()
+      }
+
+      Text {
+        visible: row.editing && text !== ""
+        width: parent.width
+        text: {
+          if (!row.editing) return ""
+          try { return root.editPlan(row.task, root.editDraft).hints.join(" · ") }
+          catch (e) { return String(e.message || e) }
+        }
+        wrapMode: Text.WordWrap
+        color: root.secondaryForeground
+        font.family: root.contentFontFamily
+        font.pixelSize: Style.font.caption
       }
 
       Text {
@@ -1806,7 +1889,7 @@ Panel {
                       + "↑/↓ ou k/j — déplacer la sélection\n"
                       + "Glisser une tâche — réordonner ou changer de date sur un onglet / jour\n"
                       + "Échap pendant le glissement — annuler\n"
-                      + "Entrée / e — modifier le titre\n"
+                      + "Entrée / e — modifier (demain à 17h, p1, #Projet)\n"
                       + "Espace — marquer comme terminée\n"
                       + "o — ouvrir la page de la tâche dans Todoist\n"
                       + "x — supprimer la tâche\n"

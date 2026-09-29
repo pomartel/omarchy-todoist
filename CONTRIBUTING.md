@@ -10,6 +10,7 @@ For anything beyond a small fix, open an issue first (or comment on an existing 
 
 - `BarWidget.qml` — the bar pill. Thin: reads state back from `Panel.qml`, decides what the pill shows.
 - `Panel.qml` — everything else. State, Todoist API calls (via `curl` `Process`es), settings persistence, and the panel UI, all in one file.
+- `EditParser.js` — inline edit syntax and project lookup validation; Todoist interprets extracted date expressions.
 - `Model.js` — pure data helpers only (sorting, date math, error-message formatting). No QML/Qt types here, so it stays easy to reason about in isolation.
 - `settings.py` — private, atomic settings persistence using Python 3. JSON is supplied on stdin.
 - `tests/` — data, request ordering, timer, and persistence regression tests.
