@@ -1077,13 +1077,13 @@ Panel {
     }
   }
 
-  component ViewTab: Button {
-    property string label: ""
+  component ViewTab: Oma.Action {
     property int tabIndex: -1
-    text: label
-    Accessible.name: label
-    hasCursor: root.dragging && root.dragDrop !== null && root.dragDrop.tab === tabIndex
-    horizontalPadding: Style.spacing.sm
+    readonly property bool hasCursor: root.dragging && root.dragDrop !== null && root.dragDrop.tab === tabIndex
+    Layout.fillWidth: true
+    Layout.preferredWidth: 0
+    Layout.minimumWidth: 0
+    bold: true
   }
 
   component TaskRow: Oma.TaskRow {
@@ -1614,79 +1614,47 @@ Panel {
               height: visible ? scroll.height : 0
               spacing: Style.spacing.md
 
-            Item {
-              id: quickAddRow
-              width: parent.width
-              implicitHeight: Style.space(28)
-              Oma.Action {
-                text: "+   Ajouter une tâche"
-                onClicked: root.openComposer()
-              }
-              PanelActionButton {
-                id: settingsButton
-                objectName: "settingsButton"
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                iconText: "󰒓"
-                tooltipText: "Réglages (p)"
-                foreground: root.contentForeground
-                onClicked: root.settingsView = true
-              }
-            }
-
-            // Wrap the tabs at narrow widths so Bientôt is never clipped.
-            Grid {
+            RowLayout {
               id: quickViewRow
               width: parent.width
-              visible: root.apiToken !== ""
-              height: visible ? implicitHeight : 0
-              clip: true
-              spacing: Style.spacing.xs
-              readonly property real widest: Math.max(todayViewButton.implicitWidth,
-                upcomingViewButton.implicitWidth, undatedViewButton.implicitWidth)
-              columns: width >= widest * 3 + spacing * 2 ? 3
-                : width >= widest * 2 + spacing ? 2 : 1
-              readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
+              height: Style.space(28)
+              spacing: Style.space(4)
 
               ViewTab {
                 id: todayViewButton
                 objectName: "todayViewButton"
                 tabIndex: 0
-                width: quickViewRow.cellWidth
-                label: "Aujourd’hui (" + root.countForView("today") + ")"
-                selected: root.quickView === "today"
-                bordered: true
-                focusable: false
-                fontSize: Style.font.caption
+                text: "Aujourd’hui"
+                tip: root.countForView("today") + " tâches (a)"
+                selected: root.quickView === "today" || hasCursor
                 onClicked: root.selectQuickView("today")
               }
               ViewTab {
                 id: upcomingViewButton
                 objectName: "upcomingViewButton"
                 tabIndex: 1
-                width: quickViewRow.cellWidth
-                tooltipText: "De demain aux six prochains jours (d)"
-                label: "Bientôt (" + root.countForView("upcoming") + ")"
-                selected: root.quickView === "upcoming"
-                bordered: true
-                focusable: false
-                fontSize: Style.font.caption
+                text: "Bientôt"
+                tip: "De demain aux six prochains jours (d) · " + root.countForView("upcoming") + " tâches"
+                selected: root.quickView === "upcoming" || hasCursor
                 onClicked: root.selectQuickView("upcoming")
               }
               ViewTab {
                 id: undatedViewButton
                 objectName: "undatedViewButton"
                 tabIndex: 2
-                width: quickViewRow.cellWidth
-                tooltipText: "Tâches sans date dans tous les projets (i)"
-                label: "Sans date (" + root.countForView("undated") + ")"
-                selected: root.quickView === "undated"
-                bordered: true
-                focusable: false
-                fontSize: Style.font.caption
+                text: "Sans date"
+                tip: "Tâches sans date dans tous les projets (i) · " + root.countForView("undated") + " tâches"
+                selected: root.quickView === "undated" || hasCursor
                 onClicked: root.selectQuickView("undated")
               }
-
+              Oma.Action {
+                id: settingsButton
+                objectName: "settingsButton"
+                iconName: "settings"
+                iconSize: Style.space(17)
+                tip: "Réglages (p)"
+                onClicked: root.settingsView = true
+              }
             }
 
             PanelSeparator {
@@ -1698,9 +1666,8 @@ Panel {
               id: taskListView
               objectName: "taskListView"
               width: parent.width
-              height: Math.max(0, taskColumn.height - quickAddRow.implicitHeight
-                    - quickViewRow.implicitHeight - taskListSeparator.implicitHeight
-                    - taskColumn.spacing * 3)
+              height: Math.max(0, taskColumn.height - quickViewRow.height - taskListSeparator.implicitHeight
+                    - taskColumn.spacing * 2)
               spacing: 0
               clip: true
               boundsBehavior: Flickable.StopAtBounds

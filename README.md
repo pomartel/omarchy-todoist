@@ -74,7 +74,7 @@ constraints, and a few things that didn't work the first time.
   `#Project`, `@label`, and natural-language due dates (`demain à 17h`,
   `lundi prochain`) all work exactly like typing into Todoist itself. A bare
   task with no date in it (`Buy milk`) defaults to today in Today and tomorrow in Bientôt; Sans date leaves it undated. Explicit `sans date` is preserved.
-- **Aujourd’hui / Bientôt / Sans date** quick-view tabs above the list.
+- **Aujourd’hui / Bientôt / Sans date** quick-view tabs use OmaTasks’ equal-width buttons, with its settings cog on the right. Hover a tab for its task count.
 - Drag task text to reorder within a group. Main tasks move with their subtasks;
   subtasks reorder among siblings without changing parents. Manual order is saved
   through Todoist's [day-order API](https://developer.todoist.com/api/v1/).
@@ -152,7 +152,7 @@ point never shifts as your count changes.
   explicitly reports that partial result; retries reuse command identifiers.
 - Task titles render Markdown links. Ctrl-click a link to open it in your
   default browser; a plain click opens its details.
-- Click **Ajouter une tâche** (or press `q`) to open the composer. Press Enter
+- Click **Ajouter une tâche** at the bottom of the list (or press `q`) to open the composer. Press Enter
   or **Ajouter une tâche** to create the task; **Annuler** closes the form.
 - The gear icon (or `p`) opens Settings, organized into **Account**,
   **Bar Count**, **General** (Refresh now, Keyboard shortcuts), and

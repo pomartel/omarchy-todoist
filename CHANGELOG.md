@@ -2,6 +2,11 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.21.1 — Compact OmaTasks header
+
+- Keep Ajouter une tâche only at the bottom of the list.
+- Use OmaTasks’ equal-width tab buttons and settings cog in one row; task counts remain available in tooltips.
+
 ## v1.21.0 — OmaTasks interface in French
 
 - Reuse OmaTasks’ task rows, task details, add/edit forms, and metadata pickers, translated into French.
