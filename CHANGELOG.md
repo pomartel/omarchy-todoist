@@ -2,6 +2,11 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.17.1 — Equal-width tabs
+
+- Rename Prochainement to Bientôt, retaining the next-six-days filter.
+- Give all three tabs equal widths, including when the layout wraps on narrow panels.
+
 ## v1.17 — Focused task views
 
 - Align subtask checkboxes with their parent’s text column, including deeper nesting.

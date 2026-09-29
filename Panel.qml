@@ -1397,7 +1397,7 @@ Panel {
               }
             }
 
-            // Wrap the tabs at narrow widths so Prochainement is never clipped.
+            // Wrap the tabs at narrow widths so Bientôt is never clipped.
             Grid {
               id: quickViewRow
               width: parent.width
@@ -1405,18 +1405,15 @@ Panel {
               height: visible ? implicitHeight : 0
               clip: true
               spacing: Style.spacing.xs
-              readonly property real naturalWidth: todayViewButton.implicitWidth
-                + upcomingViewButton.implicitWidth + undatedViewButton.implicitWidth
               readonly property real widest: Math.max(todayViewButton.implicitWidth,
                 upcomingViewButton.implicitWidth, undatedViewButton.implicitWidth)
-              columns: width >= naturalWidth + spacing * 2 ? 3
+              columns: width >= widest * 3 + spacing * 2 ? 3
                 : width >= widest * 2 + spacing ? 2 : 1
               readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
-              readonly property real extraWidth: (width - naturalWidth - spacing * 2) / 3
 
               Button {
                 id: todayViewButton
-                width: quickViewRow.columns === 3 ? implicitWidth + quickViewRow.extraWidth : quickViewRow.cellWidth
+                width: quickViewRow.cellWidth
                 text: "Auj (" + root.countForView("today") + ")"
                 selected: root.quickView === "today"
                 bordered: true
@@ -1426,9 +1423,9 @@ Panel {
               }
               Button {
                 id: upcomingViewButton
-                width: quickViewRow.columns === 3 ? implicitWidth + quickViewRow.extraWidth : quickViewRow.cellWidth
+                width: quickViewRow.cellWidth
                 tooltipText: "De demain aux six prochains jours (d)"
-                text: "Prochainement (" + root.countForView("upcoming") + ")"
+                text: "Bientôt (" + root.countForView("upcoming") + ")"
                 selected: root.quickView === "upcoming"
                 bordered: true
                 focusable: false
@@ -1437,7 +1434,7 @@ Panel {
               }
               Button {
                 id: undatedViewButton
-                width: quickViewRow.columns === 3 ? implicitWidth + quickViewRow.extraWidth : quickViewRow.cellWidth
+                width: quickViewRow.cellWidth
                 tooltipText: "Tâches sans date dans tous les projets (i)"
                 text: "Sans date (" + root.countForView("undated") + ")"
                 selected: root.quickView === "undated"
@@ -1619,8 +1616,8 @@ Panel {
                     color: root.contentForeground
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.bodySmall
-                    text: "Tab / Maj+Tab — parcourir Auj → Prochainement → Sans date\n"
-                      + "a / d / i — accéder à Auj / Prochainement / Sans date\n"
+                    text: "Tab / Maj+Tab — parcourir Auj → Bientôt → Sans date\n"
+                      + "a / d / i — accéder à Auj / Bientôt / Sans date\n"
                       + "Ctrl+a / Ctrl+d / Ctrl+i (tâche sélectionnée) — échéance aujourd’hui / demain / aucune\n"
                       + "p — afficher/masquer les réglages\n"
                       + "↑/↓ ou k/j — déplacer la sélection\n"
