@@ -2,6 +2,10 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.18.2 — Bar icon alignment
+
+- Raise the bar icon slightly to align with the task count, preserving centering when the count is hidden.
+
 ## v1.18.1 — Compact panel toolbar
 
 - Remove the Todoist header and place the settings cog beside the add-task field.

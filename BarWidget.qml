@@ -132,6 +132,8 @@ BarWidget {
 
       TodoistIcon {
         anchors.verticalCenter: parent.verticalCenter
+        // Optical alignment with the count glyph, whose ink sits above its text-box center.
+        anchors.verticalCenterOffset: countLabel.visible ? -Style.space(1) : 0
         // Matches DropboxIcon/TailscaleIcon's own sizing convention: a bit
         // smaller than a full bar-icon slot so the mark has breathing room.
         iconSize: Style.space(12)
@@ -140,6 +142,7 @@ BarWidget {
       }
 
       Text {
+        id: countLabel
         anchors.verticalCenter: parent.verticalCenter
         visible: root.hasToken && root.barCountMode !== "hide"
         text: root.barCountMode !== "hide" ? String(root.barCountValue) : ""
