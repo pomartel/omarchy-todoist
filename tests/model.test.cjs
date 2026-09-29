@@ -107,3 +107,28 @@ test('Sans date includes undated roots across all projects with their descendant
   ];
   assert.deepEqual(Array.from(m.taskTreeForView(tasks,'undated'),t=>t.id),['inbox','work','child']);
 });
+
+test('Bientôt groups only populated days and keeps children in the parent day',()=>{
+  function atOffset(offset) {
+    const date=m.localDateFromIso(m.todayIsoDate()); date.setDate(date.getDate()+offset);
+    return date.getFullYear()+'-'+m.pad2(date.getMonth()+1)+'-'+m.pad2(date.getDate());
+  }
+  const tomorrow=atOffset(1), later=atOffset(3), last=atOffset(6);
+  const input=[
+    {id:'last',content:'Last',due:{date:last}},
+    {id:'a',content:'A',due:{date:tomorrow}},
+    {id:'b',content:'B',due:{date:tomorrow}},
+    {id:'c',content:'C',due:{date:later}},
+    {id:'child',content:'Child',parent_id:'a'}
+  ];
+  const rows=m.taskTreeForView(input,'upcoming');
+  assert.deepEqual(Array.from(rows,t=>t.id),['a','child','b','c','last']);
+  assert.deepEqual(Array.from(rows,t=>t.dateGroup),[
+    'Demain','Demain','Demain',
+    m.FRENCH_WEEKDAYS[m.localDateFromIso(later).getDay()],
+    m.FRENCH_WEEKDAYS[m.localDateFromIso(last).getDay()]
+  ]);
+  assert.equal(new Set(Array.from(rows,t=>t.dateGroup)).size,3);
+  assert.equal(rows[0].content,'A');
+  assert.equal(m.taskTreeForView([],'upcoming').length,0);
+});

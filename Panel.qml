@@ -751,6 +751,8 @@ Panel {
 
     readonly property bool overdue: Model.taskIsOverdue(task)
     readonly property string dueLabel: {
+      // Bientôt names the day in the section heading, not on each task row.
+      if (root.quickView === "upcoming") return Model.dueTimeLabel(task).trim()
       // Subtasks can have a different due date from their parent's section.
       if (task && task.subtaskDepth > 0) return Model.taskDueLabel(task)
       // Today is already named by the section; future tasks keep their dates.

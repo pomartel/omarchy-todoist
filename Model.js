@@ -177,7 +177,8 @@ function taskTreeForView(allTasks, view) {
 
   function appendTree(root) {
     var include = tasksForView([root], view).length > 0
-    var group = taskDateGroup(root)
+    var group = view === "upcoming"
+      ? naturalDueDateLabel(localDueDateIso(root)) : taskDateGroup(root)
     var stack = [{ task: root, depth: 0 }]
     while (stack.length > 0) {
       var entry = stack.pop()

@@ -60,7 +60,9 @@ constraints, and a few things that didn't work the first time.
   under **En retard**, **Aujourd’hui**, **À venir**, and **Sans date**, with
   empty groups omitted. Today rows omit a redundant date label but retain
   any due time. Bientôt shows tomorrow through six days from today
-  (excluding today), with due dates visible on each row. Secondary text
+  (excluding today), grouped under Demain and then French weekday headings.
+  Only days containing tasks are shown. Rows keep due times but omit repeated
+  date labels; subtasks remain under their parent’s day. Secondary text
   and placeholders use a higher-contrast version of the theme foreground.
 - Click the circle next to a task to mark it complete. The row is struck
   through immediately and removed after server confirmation and a short delay.

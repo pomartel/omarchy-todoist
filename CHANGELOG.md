@@ -2,6 +2,11 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.17.2 — Day sections in Bientôt
+
+- Group Bientôt by Demain and weekday names, showing only days with tasks.
+- Keep subtasks with their parent and remove repeated row dates while retaining due times.
+
 ## v1.17.1 — Equal-width tabs
 
 - Rename Prochainement to Bientôt, retaining the next-six-days filter.
