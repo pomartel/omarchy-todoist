@@ -160,11 +160,27 @@ function sortedTasks(tasks) {
   return list
 }
 
-// Keep subtasks out of the main list. Todoist exposes their parent through
-// parent_id (and the legacy parent field on older responses).
-function topLevelTasks(tasks) {
-  return (tasks || []).filter(function(task) {
-    return task && !task.parent_id && !task.parent
+// Attach display-only parent context without changing task IDs or due dates.
+// Resolve parents from the full snapshot, including parents outside this view.
+function withParentContext(tasks, allTasks) {
+  var byId = Object.create(null)
+  ;(allTasks || []).forEach(function(task) { byId[task.id] = task })
+  return (tasks || []).map(function(task) {
+    var result = {}
+    for (var key in task) result[key] = task[key]
+    var parentId = task.parent_id || task.parent || ""
+    var parent = byId[parentId]
+    result.parentTitle = parent ? parent.content : ""
+    result.subtaskDepth = 0
+    var seen = Object.create(null)
+    seen[task.id] = true
+    while (parentId && !seen[parentId]) {
+      seen[parentId] = true
+      result.subtaskDepth++
+      parent = byId[parentId]
+      parentId = parent ? (parent.parent_id || parent.parent || "") : ""
+    }
+    return result
   })
 }
 

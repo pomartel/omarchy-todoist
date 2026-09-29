@@ -2,6 +2,12 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.16 — Subtasks
+
+- Display and count active subtasks in every matching view, grouped by their own due dates.
+- Indent subtasks and show parent titles from the full snapshot, including parents outside the current view.
+- Keep all existing keyboard and task actions available on subtasks.
+
 ## v1.15.2 — Date groups and readable secondary text
 
 - Group tasks under En retard, Aujourd’hui, À venir, and Sans date; use Demain in the Tomorrow view.

@@ -21,13 +21,12 @@ test('only safe links become anchors and task HTML stays escaped',()=>{
 test('curl config values cannot inject extra configuration lines',()=>{
   assert.equal(m.curlConfigEscape('a"b\\c\nd\r'), 'a\\"b\\\\c\\nd\\r');
 });
-test('local dates, priority ordering and top-level filtering',()=>{
+test('local dates and priority ordering',()=>{
   const today=m.todayIsoDate();
   const a={id:'a',content:'a',priority:1,due:{date:today}};
   const b={id:'b',content:'b',priority:4,due:{date:today}};
   assert.equal(m.sortedTasks([a,b])[0].id,'b');
   assert.equal(m.tasksForView([a,{id:'c'}],'today').length,1);
-  assert.equal(m.topLevelTasks([a,{id:'c',parent_id:'a'}]).length,1);
   assert.equal(m.localDueDateIso(a),today);
 });
 
@@ -51,4 +50,22 @@ test('timed task grouping uses the local date rather than the raw UTC date',()=>
   const local=new Date(2026,8,29,23,30);
   const task={due:{date:local.toISOString(),datetime:local.toISOString()}};
   assert.equal(m.taskDateGroup(task,'2026-09-29'),'Aujourd’hui');
+});
+
+test('subtask context resolves absent-view parents and nested ancestors without mutating tasks',()=>{
+  const parent={id:'p',content:'Parent'};
+  const child={id:'c',content:'Child',parent_id:'p'};
+  const grandchild={id:'g',content:'Grandchild',parent_id:'c'};
+  const result=m.withParentContext([child,grandchild],[parent,child,grandchild]);
+  assert.equal(result[0].parentTitle,'Parent'); assert.equal(result[0].subtaskDepth,1);
+  assert.equal(result[1].parentTitle,'Child'); assert.equal(result[1].subtaskDepth,2);
+  assert.equal(child.subtaskDepth,undefined); assert.equal(result[0].id,'c');
+});
+
+test('missing parents and cyclic parent data remain safe to display',()=>{
+  const missing={id:'m',parent_id:'absent'};
+  const a={id:'a',content:'A',parent:'b'}, b={id:'b',content:'B',parent_id:'a'};
+  const result=m.withParentContext([missing,a,b],[a,b]);
+  assert.equal(result[0].subtaskDepth,1); assert.equal(result[0].parentTitle,'');
+  assert.equal(result[1].subtaskDepth,1); assert.equal(result[2].subtaskDepth,1);
 });

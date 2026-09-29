@@ -77,7 +77,10 @@ constraints, and a few things that didn't work the first time.
   background while it's closed (never both at once). Overlapping refresh
   requests are coalesced. All pages are fetched before publishing a snapshot;
   Today, Tomorrow, All, and the bar count share those results. Inbox shows
-  undated Inbox tasks. Subtasks are excluded from all views and counts.
+  undated Inbox tasks. Active subtasks are included in views and counts,
+  using their own due dates. They are indented and show their parent’s title,
+  including when the parent is outside the selected view. Undated subtasks
+  appear under Sans date in All; they do not inherit a parent's due date.
 - Matches whatever Omarchy theme you're running — the panel pulls its
   colors from the shell's own theme system, so it looks native under light,
   dark, or any custom accent color, with no separate config to keep in sync.

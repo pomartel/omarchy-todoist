@@ -557,8 +557,8 @@ Panel {
 
   function applySnapshot() {
     var selected = selectedTask()
-    root.tasks = Model.sortedTasks(Model.tasksForView(
-      root.quickView === "inbox" ? root.inboxTasks : root.allTasks, root.quickView))
+    root.tasks = Model.withParentContext(Model.sortedTasks(Model.tasksForView(
+      root.quickView === "inbox" ? root.inboxTasks : root.allTasks, root.quickView)), root.allTasks)
     root.selectedTaskIndex = selected ? root.tasks.findIndex(function(t) { return t.id === selected.id }) : -1
     root.todayTaskCount = Model.tasksForView(root.allTasks, "today").length
     root.tomorrowTaskCount = Model.tasksForView(root.allTasks, "tomorrow").length
@@ -626,8 +626,8 @@ Panel {
         fetchPage("")
         return
       }
-      root.allTasks = Model.topLevelTasks(listProc.allResults)
-      root.inboxTasks = Model.topLevelTasks(listProc.accumulated)
+      root.allTasks = listProc.allResults
+      root.inboxTasks = listProc.accumulated
       applySnapshot()
       root.lastSyncedAt = Date.now()
     } catch (e) {
@@ -831,6 +831,17 @@ Panel {
       anchors.top: parent.top
       anchors.topMargin: Style.spacing.sm
       spacing: 2
+
+      Text {
+        width: parent.width
+        visible: row.task && row.task.subtaskDepth > 0
+        text: row.task && row.task.parentTitle ? "↳ " + row.task.parentTitle : "↳ Sous-tâche"
+        textFormat: Text.PlainText
+        color: root.secondaryForeground
+        font.family: root.contentFontFamily
+        font.pixelSize: Style.font.caption
+        elide: Text.ElideRight
+      }
 
       Text {
         id: taskText
@@ -1499,7 +1510,9 @@ Panel {
 
                   TaskRow {
                     id: delegateRow
-                    width: parent.width
+                    // Cap indentation so deeply nested titles remain readable.
+                    x: Math.min(delegateItem.modelData.subtaskDepth || 0, 2) * Style.space(12)
+                    width: parent.width - x
                     task: delegateItem.modelData
                     rowIndex: delegateItem.index
                     hasCursor: root.taskCursorActive && delegateItem.index === root.selectedTaskIndex
