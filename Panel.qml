@@ -786,9 +786,9 @@ Panel {
       }
     }
 
-    readonly property real rowTopPadding: task && task.subtaskDepth > 0 ? Style.spacing.xs : Style.spacing.sm
+    readonly property real rowTopPadding: task && task.subtaskDepth > 0 ? Style.spacing.hairline : Style.spacing.sm
     readonly property real rowBottomPadding: rowIndex + 1 < root.tasks.length
-      && root.tasks[rowIndex + 1].subtaskDepth > 0 ? Style.spacing.xs : Style.spacing.sm
+      && root.tasks[rowIndex + 1].subtaskDepth > 0 ? Style.spacing.hairline : Style.spacing.sm
     height: Math.max(checkBtn.height, textColumn.implicitHeight) + rowTopPadding + rowBottomPadding
 
     Rectangle {
