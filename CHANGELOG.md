@@ -2,6 +2,16 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.15 — Reliable task synchronization
+
+- Fetch every page and derive views and counts from a shared snapshot.
+- Serialize task actions, keep edits tied to task IDs, and wait for completion confirmation before removing rows.
+- Ignore obsolete responses after account changes or mutations and preserve action errors through refreshes.
+- Use one polling timer: 2 minutes open, 20 minutes closed.
+- Store settings with private permissions from creation and atomic replacement; report persistence failures.
+- Recognize French times and explicit no-date quick-add phrases; preserve newer quick-add drafts.
+- Add regression tests, real QML parsing in CI, and updated security/dependency documentation.
+
 ## v1.14 — Native panel styling
 
 ### Added

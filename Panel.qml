@@ -63,14 +63,13 @@ Panel {
   property int selectedTaskIndex: -1
   property bool taskCursorActive: false
 
-  // Tasks mid-completion: closed on the server already, but kept in the
-  // list (struck through, dimmed) for a moment so the click reads as
-  // "done", not "vanished".
+  // Tasks remain struck through while queued/in flight, and briefly after
+  // server confirmation. Only confirmed completions enter pendingRemovalIds.
   property var completingTaskIds: []
   property var pendingRemovalIds: []
 
-  // Inline content editing. -1 = no row being edited.
-  property int editingTaskIndex: -1
+  // Inline editing follows the task ID across refreshes and sorting.
+  property string editingTaskId: ""
   property string editDraft: ""
 
   // Enter fires both returnRequested (open in browser) and activateRequested
@@ -88,14 +87,22 @@ Panel {
   property int panelHeight: 480
 
   property bool loading: false
-  property string errorText: ""
+  property string fetchError: ""
+  property string actionError: ""
+  property string settingsError: ""
+  readonly property string errorText: [settingsError, actionError, fetchError].filter(function(s) { return s !== "" }).join("\n")
+  property int accountGeneration: 0
+  property int dataRevision: 0
+  property var allTasks: []
+  property var inboxTasks: []
+  property var pendingTaskIds: []
+  property string pendingSettings: ""
+  property bool stateReady: false
   // Set when refresh() is called while a fetch is already in flight —
   // listProc's own exit handler starts one more fetch once it sees this,
   // so a triggering action never has its refresh silently dropped.
   property bool refreshPending: false
-  // 0 = never synced. Set from listProc's own success path (not from
-  // refresh() itself, which fires before the request completes) so the
-  // header's SYNCED stat always reflects a real, landed response.
+  // Timestamp of the last fully fetched snapshot; 0 means never synced.
   property real lastSyncedAt: 0
 
   // ---- Bar count (Settings → Bar Count). A fixed choice independent of
@@ -114,6 +121,7 @@ Panel {
   property string quickAddText: ""
   property bool quickAddSubmitting: false
   property var actionQueue: []
+  property bool actionBusy: false
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
@@ -161,53 +169,100 @@ Panel {
   //      token is a secret, not bar layout, so it never round-trips through
   //      the shared config the bar writes.
   function ensureStateDir() {
-    mkdirProc.running = true
+    initStateProc.running = true
   }
 
   function loadSettingsFromText(text) {
+    if (root.settingsLoaded) return
     var parsed = {}
-    try { parsed = JSON.parse(text || "{}") } catch (e) { parsed = {} }
-    if (typeof parsed.apiToken === "string") root.apiToken = parsed.apiToken
-    if (typeof parsed.quickView === "string" && ["today", "tomorrow", "inbox", "all"].indexOf(parsed.quickView) !== -1)
-      root.quickView = parsed.quickView
+    try {
+      parsed = JSON.parse(text || "{}")
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("settings")
+    } catch (e) {
+      root.settingsError = "Impossible de lire les réglages Todoist."
+      parsed = {}
+    }
+    if (typeof parsed.apiToken === "string") root.apiToken = Model.safeTrim(parsed.apiToken)
+    if (["today", "tomorrow", "inbox", "all"].indexOf(parsed.quickView) !== -1) root.quickView = parsed.quickView
     if (typeof parsed.panelWidth === "number") root.panelWidth = Math.max(260, Math.min(700, parsed.panelWidth))
     if (typeof parsed.panelHeight === "number") root.panelHeight = Math.max(240, Math.min(800, parsed.panelHeight))
-    if (typeof parsed.barCountMode === "string" && ["hide", "today", "inbox", "all"].indexOf(parsed.barCountMode) !== -1)
-      root.barCountMode = parsed.barCountMode
+    if (["hide", "today", "inbox", "all"].indexOf(parsed.barCountMode) !== -1) root.barCountMode = parsed.barCountMode
     root.settingsLoaded = true
     root.settingsView = root.apiToken === ""
-    if (root.apiToken !== "") { refresh(); refreshBarCount() }
+    if (root.apiToken !== "") refresh()
   }
 
   function persistSettings() {
-    settingsFile.setText(JSON.stringify({
-      apiToken: root.apiToken,
-      quickView: root.quickView,
-      panelWidth: root.panelWidth,
-      panelHeight: root.panelHeight,
+    if (!root.settingsLoaded) return
+    root.pendingSettings = JSON.stringify({
+      apiToken: root.apiToken, quickView: root.quickView,
+      panelWidth: root.panelWidth, panelHeight: root.panelHeight,
       barCountMode: root.barCountMode
-    }, null, 2) + "\n")
-    // The token is a secret; keep the file readable only by the user. A
-    // short defer gives the atomic write below somewhere to land first.
-    Qt.callLater(function() { chmodProc.running = true })
+    }, null, 2) + "\n"
+    writePendingSettings()
+  }
+
+  function writePendingSettings() {
+    if (!root.stateReady || settingsWriteProc.running || root.pendingSettings === "") return
+    var text = root.pendingSettings
+    root.pendingSettings = ""
+    settingsWriteProc.stdinEnabled = true
+    settingsWriteProc.running = true
+    settingsWriteProc.write(text)
+    settingsWriteProc.stdinEnabled = false
+  }
+
+  function resetAccount() {
+    root.accountGeneration++
+    root.dataRevision++
+    root.actionQueue = []
+    root.pendingTaskIds = []
+    root.completingTaskIds = []
+    root.pendingRemovalIds = []
+    completionRemovalTimer.stop()
+    root.allTasks = []
+    root.inboxTasks = []
+    root.tasks = []
+    root.todayTaskCount = 0
+    root.tomorrowTaskCount = 0
+    root.inboxTaskCount = 0
+    root.allTaskCount = 0
+    root.barCountValue = 0
+    root.lastSyncedAt = 0
+    root.selectedTaskIndex = -1
+    root.taskCursorActive = false
+    root.editingTaskId = ""
+    root.editDraft = ""
+    root.quickAddText = ""
+    quickAddField.text = ""
+    root.quickAddSubmitting = false
+    root.refreshPending = false
+    root.fetchError = ""
+    root.actionError = ""
+    // In-flight processes finish with their original generation and are ignored.
   }
 
   function saveToken() {
     var value = Model.safeTrim(root.tokenDraft)
-    if (value === "") return
+    if (value === "" || !root.stateReady || !root.settingsLoaded) return
+    if (/[\r\n]/.test(value)) {
+      root.settingsError = "Le jeton API doit tenir sur une seule ligne."
+      return
+    }
+    resetAccount()
     root.apiToken = value
     root.tokenDraft = ""
     tokenField.text = ""
-    root.errorText = ""
     root.settingsView = false
     persistSettings()
     refresh()
   }
 
   function clearToken() {
+    resetAccount()
     root.apiToken = ""
-    root.tasks = []
-    root.errorText = ""
+    root.tokenDraft = ""
+    tokenField.text = ""
     root.settingsView = true
     persistSettings()
   }
@@ -298,6 +353,7 @@ Panel {
     root.selectedTaskIndex = -1
     root.taskCursorActive = false
     persistSettings()
+    applySnapshot()
     refresh()
   }
 
@@ -349,169 +405,64 @@ Panel {
     root.close()
   }
 
-  // ---- Inline content edit (e).
+  // ---- Task actions use stable IDs and one serialized request queue.
+  function taskIsPending(taskId) {
+    return root.pendingTaskIds.indexOf(taskId) !== -1
+  }
+
+  function selectedTask() {
+    return root.tasks[root.selectedTaskIndex] || null
+  }
+
   function startEditSelectedTask() {
-    if (root.selectedTaskIndex < 0 || root.selectedTaskIndex >= root.tasks.length) return
-    var task = root.tasks[root.selectedTaskIndex]
-    if (!task || root.completingTaskIds.indexOf(task.id) !== -1) return
+    var task = selectedTask()
+    if (!task || taskIsPending(task.id)) return
     root.editDraft = task.content || ""
-    root.editingTaskIndex = root.selectedTaskIndex
+    root.editingTaskId = task.id
   }
 
   function cancelEditTask() {
-    root.editingTaskIndex = -1
+    root.editingTaskId = ""
     root.editDraft = ""
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
-  // ---- Runs a curl Process with the Todoist Authorization header. The
-  //      token is deliberately never placed in `command` — argv is visible
-  //      to every local user via /proc or `ps`, so the header is instead
-  //      handed to curl over its own stdin as a "-K -" config line (curl's
-  //      documented way to keep a secret out of the process list); `command`
-  //      itself must include "-K", "-" wherever the header would have gone.
+  // Secrets go through stdin, never argv. Escape curl configuration syntax.
   function runAuthedCurl(proc, command) {
     proc.stdinEnabled = true
     proc.command = command
     proc.running = true
-    proc.write("header = \"Authorization: Bearer " + root.apiToken + "\"\n")
+    proc.write("header = \"Authorization: Bearer " + Model.curlConfigEscape(root.apiToken) + "\"\n")
     proc.stdinEnabled = false
   }
 
   function commitEditTask() {
-    var index = root.editingTaskIndex
-    root.editingTaskIndex = -1
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
-    if (index < 0 || index >= root.tasks.length) { root.editDraft = ""; return }
-    var task = root.tasks[index]
-    var newContent = Model.safeTrim(root.editDraft)
-    root.editDraft = ""
-    if (!task || newContent === "" || newContent === task.content) return
-
-    var updated = {}
-    for (var key in task) updated[key] = task[key]
-    updated.content = newContent
-    var nextTasks = root.tasks.slice()
-    nextTasks[index] = updated
-    root.tasks = nextTasks
-
-    runAuthedCurl(editProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", "-X", "POST",
-      "-H", "Content-Type: application/json",
-      "-d", JSON.stringify({ content: newContent }),
-      root.apiBase + "/tasks/" + encodeURIComponent(task.id)])
-  }
-
-  // ---- Quick due-date actions for the selected task (a/d/i). Without a
-  //      selected task these keys keep their quick-view behavior below.
-  function selectedTask() {
-    if (root.selectedTaskIndex < 0 || root.selectedTaskIndex >= root.tasks.length) return null
-    return root.tasks[root.selectedTaskIndex]
+    var taskId = root.editingTaskId
+    var content = Model.safeTrim(root.editDraft)
+    cancelEditTask()
+    if (taskId === "" || content === "") return
+    var task = root.allTasks.filter(function(t) { return t.id === taskId })[0]
+    if (!task) { root.actionError = "Cette tâche n’est plus disponible."; return }
+    if (content !== task.content) enqueueAction("edit", taskId, { content: content })
   }
 
   function setSelectedTaskDue(dueString) {
-    var task = root.selectedTask()
-    if (!task || !task.id || dueProc.running) return
-
-    var payload = dueString === null
-      ? { due_string: "no date" }
-      : { due_string: dueString, due_lang: "fr" }
-    runAuthedCurl(dueProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", "-X", "POST",
-      "-H", "Content-Type: application/json",
-      "-d", JSON.stringify(payload),
-      root.apiBase + "/tasks/" + encodeURIComponent(task.id)])
-  }
-
-  // ---- Delete the selected task (via "x"). -----------------------------
-  function requestDeleteSelected() {
-    if (root.selectedTaskIndex < 0 || root.selectedTaskIndex >= root.tasks.length) return
-    var task = root.tasks[root.selectedTaskIndex]
+    var task = selectedTask()
     if (!task) return
-    root.tasks = root.tasks.filter(function(t) { return !t || t.id !== task.id })
-    runAuthedCurl(deleteProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", "-X", "DELETE",
-      root.apiBase + "/tasks/" + encodeURIComponent(task.id)])
+    enqueueAction("due", task.id, dueString === null
+      ? { due_string: "no date", due_lang: "en" }
+      : { due_string: dueString, due_lang: "en" })
   }
 
-  // ---- Task list. Every mutating action (add/complete/edit/delete/view
-  //      switch) and both poll timers funnel through this one function, so
-  //      "avoid duplicate requests" only has to be solved once: if a fetch
-  //      is already in flight, don't start a second curl process — just
-  //      remember that a fresh one is wanted and let listProc's own exit
-  //      handler fire it once the in-flight one finishes. That's how an
-  //      "immediate" refresh stays immediate without ever running two list
-  //      fetches at the same time.
-  // Shared by refresh() (the popup's own list) and refreshBarCount() (the
-  // bar badge's independent count) — same three endpoints either way.
-  function urlForView(view) {
-    if (view === "all" || view === "today" || view === "tomorrow")
-      return root.apiBase + "/tasks"
-    var query = "#Inbox & no due date"
-    return root.apiBase + "/tasks/filter?query=" + encodeURIComponent(query) + "&lang=fr"
+  function requestDeleteSelected() {
+    var task = selectedTask()
+    if (task) enqueueAction("delete", task.id, null)
   }
 
-  function refresh() {
-    if (root.apiToken === "") {
-      root.settingsView = true
-      return
-    }
-    if (listProc.running) { root.refreshPending = true; return }
-    root.refreshPending = false
-    root.loading = true
-    root.errorText = ""
-
-    runAuthedCurl(listProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", root.urlForView(root.quickView)])
-    root.refreshViewCounts()
-    // A fetch just actually started — push both poll timers' next tick out
-    // from here rather than from whenever the panel happened to open, so a
-    // background/interval tick can't land moments after a refresh some
-    // other action already triggered.
-    openRefreshTimer.restart()
-    backgroundRefreshTimer.restart()
+  function requestComplete(taskId) {
+    enqueueAction("complete", taskId, null)
   }
 
-  function countForView(view) {
-    return view === "today" ? root.todayTaskCount
-      : view === "tomorrow" ? root.tomorrowTaskCount
-      : view === "inbox" ? root.inboxTaskCount
-      : root.allTaskCount
-  }
-
-  function refreshViewCounts() {
-    if (root.apiToken === "") return
-    if (!todayCountProc.running)
-      runAuthedCurl(todayCountProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", root.urlForView("today")])
-    if (!tomorrowCountProc.running)
-      runAuthedCurl(tomorrowCountProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", root.urlForView("tomorrow")])
-    if (!inboxCountProc.running)
-      runAuthedCurl(inboxCountProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", root.urlForView("inbox")])
-    if (!allCountProc.running)
-      runAuthedCurl(allCountProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", root.urlForView("all")])
-  }
-
-  // ---- Bar count (Settings → Bar Count). Independent of whichever tab the
-  //      popup itself is showing. Skips the request entirely when the
-  //      chosen mode happens to match the popup's current tab — reuses
-  //      root.taskCount instead of duplicating the fetch.
-  function refreshBarCount() {
-    if (root.barCountMode === "hide" || root.apiToken === "") return
-    if (root.barCountMode === root.quickView) {
-      root.barCountValue = root.taskCount
-      return
-    }
-    if (barCountProc.running) return
-    runAuthedCurl(barCountProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", root.urlForView(root.barCountMode)])
-  }
-
-  function setBarCountMode(mode) {
-    if (mode === root.barCountMode) return
-    root.barCountMode = mode
-    persistSettings()
-    root.refreshBarCount()
-  }
-
-  // ---- Quick add. Uses Todoist's own Quick Add parser (/tasks/quick) so
-  //      "p1"/"p2"/"p3"/"p4", "#Project", "@label", and natural-language
-  //      due dates work exactly like typing into Todoist itself. A bare task
-  //      inherits Auj/Demain, while other views leave it without a due date.
   function quickAddTextForView(content) {
     if (Model.quickAddHasDueHint(content)) return content
     if (root.quickView === "today") return content + " aujourd'hui"
@@ -521,271 +472,224 @@ Panel {
 
   function submitQuickAdd() {
     var content = Model.safeTrim(root.quickAddText)
-    if (content === "" || root.quickAddSubmitting || root.apiToken === "") return
-    var text = root.quickAddTextForView(content)
-    root.quickAddSubmitting = true
-    root.errorText = ""
-    runAuthedCurl(createProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", "-X", "POST",
-      "-H", "Content-Type: application/json",
-      "-d", JSON.stringify({ text: text }),
-      root.apiBase + "/tasks/quick"])
+    if (content === "" || root.quickAddSubmitting) return
+    enqueueAction("create", "", { text: quickAddTextForView(content) }, content)
   }
 
-  // ---- Complete task. Marked "completing" (struck through, dimmed) right
-  //      away for feedback, then actually removed from the list a moment
-  //      later — the API call itself fires immediately, only the row's
-  //      disappearance is delayed.
-  function requestComplete(taskId) {
-    if (taskId === "" || root.completingTaskIds.indexOf(taskId) !== -1) return
-    root.completingTaskIds = root.completingTaskIds.concat([taskId])
-    root.pendingRemovalIds.push(taskId)
-    root.actionQueue.push(taskId)
+  function enqueueAction(kind, taskId, payload, draft) {
+    if (root.apiToken === "" || (kind !== "create" && (!taskId || taskIsPending(taskId)))) return
+    root.actionError = ""
+    root.dataRevision++
+    if (kind === "create") root.quickAddSubmitting = true
+    else root.pendingTaskIds = root.pendingTaskIds.concat([taskId])
+    if (kind === "complete") root.completingTaskIds = root.completingTaskIds.concat([taskId])
+    root.actionQueue = root.actionQueue.concat([{
+      kind: kind, taskId: taskId, payload: payload, draft: draft || "",
+      generation: root.accountGeneration
+    }])
     processActionQueue()
-    completionRemovalTimer.restart()
   }
 
-  // Undoes the optimistic "completing" state for one task without touching
-  // any other task mid-completion — used when the close call itself fails,
-  // so a failed complete doesn't still get silently removed 700ms later by
-  // flushCompletedRemovals()'s own blind removal-by-id.
-  function undoCompleting(taskId) {
-    root.completingTaskIds = root.completingTaskIds.filter(function(id) { return id !== taskId })
-    root.pendingRemovalIds = root.pendingRemovalIds.filter(function(id) { return id !== taskId })
+  function processActionQueue() {
+    if (root.actionBusy || root.actionQueue.length === 0) return
+    var action = root.actionQueue[0]
+    root.actionQueue = root.actionQueue.slice(1)
+    root.actionBusy = true
+    actionProc.action = action
+    var url = root.apiBase + "/tasks/" + encodeURIComponent(action.taskId)
+    if (action.kind === "create") url = root.apiBase + "/tasks/quick"
+    else if (action.kind === "complete") url += "/close"
+    var command = ["curl", "-q", "-fsS", "--max-time", "10", "-K", "-",
+      "-X", action.kind === "delete" ? "DELETE" : "POST"]
+    if (action.payload !== null) command = command.concat([
+      "-H", "Content-Type: application/json", "-d", JSON.stringify(action.payload)])
+    runAuthedCurl(actionProc, command.concat([url]))
+  }
+
+  function finishAction(action, exitCode, stderrText) {
+    root.actionBusy = false
+    if (action.generation === root.accountGeneration) {
+      root.dataRevision++
+      if (action.kind === "create") {
+        root.quickAddSubmitting = false
+        if (exitCode === 0 && Model.safeTrim(root.quickAddText) === action.draft) {
+          root.quickAddText = ""
+          quickAddField.text = ""
+        }
+      }
+      if (exitCode !== 0) {
+        root.actionError = Model.errorMessageForExit(exitCode, stderrText)
+      }
+      if (action.kind === "complete" && exitCode === 0) {
+        // Keep the row until the server confirms AND its feedback has been shown.
+        root.pendingRemovalIds = root.pendingRemovalIds.concat([action.taskId])
+        completionRemovalTimer.restart()
+      } else {
+        root.pendingTaskIds = root.pendingTaskIds.filter(function(id) { return id !== action.taskId })
+        root.completingTaskIds = root.completingTaskIds.filter(function(id) { return id !== action.taskId })
+      }
+      root.refreshPending = true
+    }
+    processActionQueue()
+    if (!root.actionBusy && root.actionQueue.length === 0 && root.pendingRemovalIds.length === 0)
+      refresh()
   }
 
   function flushCompletedRemovals() {
     var ids = root.pendingRemovalIds
     root.pendingRemovalIds = []
-    root.tasks = root.tasks.filter(function(t) { return !t || ids.indexOf(t.id) === -1 })
+    root.allTasks = root.allTasks.filter(function(t) { return ids.indexOf(t.id) === -1 })
+    root.inboxTasks = root.inboxTasks.filter(function(t) { return ids.indexOf(t.id) === -1 })
     root.completingTaskIds = root.completingTaskIds.filter(function(id) { return ids.indexOf(id) === -1 })
-    // Refresh now, once the strike-through/dim animation has actually
-    // settled — not from actionProc's own success handler directly, which
-    // could arrive before the 700ms delay above and have this task's row
-    // vanish outright (a full list replacement) instead of visibly
-    // completing first.
-    root.refresh()
+    root.pendingTaskIds = root.pendingTaskIds.filter(function(id) { return ids.indexOf(id) === -1 })
+    applySnapshot()
+    refresh()
   }
 
-  function processActionQueue() {
-    if (actionProc.running || root.actionQueue.length === 0) return
-    var taskId = root.actionQueue.shift()
-    actionProc.pendingTaskId = taskId
-    runAuthedCurl(actionProc, ["curl", "-fsS", "--max-time", "10", "-K", "-", "-X", "POST",
-      root.apiBase + "/tasks/" + encodeURIComponent(taskId) + "/close"])
+  function urlForView(view) {
+    if (view !== "inbox") return root.apiBase + "/tasks?limit=200"
+    return root.apiBase + "/tasks/filter?query=" + encodeURIComponent("#Inbox & no due date") + "&lang=fr&limit=200"
   }
 
-  Component.onCompleted: {
-    ensureStateDir()
-    Qt.callLater(function() { settingsFile.reload() })
+  function countForView(view) {
+    return view === "today" ? root.todayTaskCount
+      : view === "tomorrow" ? root.tomorrowTaskCount
+      : view === "inbox" ? root.inboxTaskCount : root.allTaskCount
   }
 
-  // ---- Processes -----------------------------------------------------
+  function applySnapshot() {
+    var selected = selectedTask()
+    root.tasks = Model.sortedTasks(Model.tasksForView(
+      root.quickView === "inbox" ? root.inboxTasks : root.allTasks, root.quickView))
+    root.selectedTaskIndex = selected ? root.tasks.findIndex(function(t) { return t.id === selected.id }) : -1
+    root.todayTaskCount = Model.tasksForView(root.allTasks, "today").length
+    root.tomorrowTaskCount = Model.tasksForView(root.allTasks, "tomorrow").length
+    root.inboxTaskCount = root.inboxTasks.length
+    root.allTaskCount = root.allTasks.length
+    refreshBarCount()
+  }
+
+  function refreshBarCount() {
+    root.barCountValue = root.barCountMode === "hide" ? 0 : countForView(root.barCountMode)
+  }
+
+  function setBarCountMode(mode) {
+    if (mode === root.barCountMode) return
+    root.barCountMode = mode
+    persistSettings()
+    refreshBarCount()
+  }
+
+  function refresh() {
+    if (root.apiToken === "") return
+    if (root.loading || root.actionBusy || root.actionQueue.length > 0 || root.pendingRemovalIds.length > 0) {
+      root.refreshPending = true
+      return
+    }
+    root.refreshPending = false
+    root.fetchError = ""
+    root.loading = true
+    listProc.generation = root.accountGeneration
+    listProc.revision = root.dataRevision
+    listProc.view = "all"
+    listProc.accumulated = []
+    listProc.allResults = []
+    listProc.cursors = []
+    fetchPage("")
+  }
+
+  function fetchPage(cursor) {
+    var url = urlForView(listProc.view)
+    if (cursor !== "") url += "&cursor=" + encodeURIComponent(cursor)
+    runAuthedCurl(listProc, ["curl", "-q", "-fsS", "--max-time", "10", "-K", "-", url])
+  }
+
+  function finishFetch(exitCode, stdoutText, stderrText) {
+    if (listProc.generation !== root.accountGeneration || listProc.revision !== root.dataRevision) {
+      root.loading = false
+      if (root.apiToken !== "") refresh()
+      return
+    }
+    try {
+      if (exitCode !== 0) throw new Error(Model.errorMessageForExit(exitCode, stderrText))
+      var page = Model.parseTaskPage(stdoutText)
+      listProc.accumulated = listProc.accumulated.concat(page.results)
+      if (page.next_cursor !== null) {
+        if (listProc.cursors.indexOf(page.next_cursor) !== -1) throw new Error("Curseur Todoist répété.")
+        listProc.cursors = listProc.cursors.concat([page.next_cursor])
+        fetchPage(page.next_cursor)
+        return
+      }
+      if (listProc.view === "all") {
+        listProc.allResults = listProc.accumulated
+        listProc.accumulated = []
+        listProc.cursors = []
+        listProc.view = "inbox"
+        fetchPage("")
+        return
+      }
+      root.allTasks = Model.topLevelTasks(listProc.allResults)
+      root.inboxTasks = Model.topLevelTasks(listProc.accumulated)
+      applySnapshot()
+      root.lastSyncedAt = Date.now()
+    } catch (e) {
+      root.fetchError = String(e.message || e)
+    }
+    root.loading = false
+    if (root.refreshPending) refresh()
+  }
+
+  Component.onCompleted: ensureStateDir()
 
   Process {
-    id: mkdirProc
-    command: ["mkdir", "-p", root.stateDir]
+    id: initStateProc
+    command: ["python3", root.pluginDir + "/settings.py", "--init", root.stateDir]
+    onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        root.settingsError = "Impossible de préparer le dossier privé des réglages."
+        return
+      }
+      root.stateReady = true
+      settingsFile.path = root.settingsPath
+    }
   }
 
   Process {
-    id: chmodProc
-    command: ["chmod", "600", root.settingsPath]
+    id: settingsWriteProc
+    command: ["python3", root.pluginDir + "/settings.py", "--write", root.stateDir]
+    onExited: function(exitCode) {
+      root.settingsError = exitCode === 0 ? "" : "Impossible d’enregistrer les réglages Todoist. Réessayez."
+      Qt.callLater(root.writePendingSettings)
+    }
   }
 
   Process {
     id: listProc
-    stdout: StdioCollector {
-      id: listOut
-      waitForEnd: true
-      onStreamFinished: {
-        root.loading = false
-        var raw = String(text || "").trim()
-        if (raw === "") return
-        try {
-          var parsed = JSON.parse(raw)
-          var results = (parsed && parsed.results) ? parsed.results : []
-          root.tasks = Model.sortedTasks(Model.tasksForView(
-            Model.topLevelTasks(results), root.quickView))
-          root.errorText = ""
-          root.lastSyncedAt = Date.now()
-          // Keeps the bar badge's "same tab" fast path maximally fresh
-          // without waiting for the next poll tick.
-          root.refreshBarCount()
-        } catch (e) {
-          root.errorText = "Impossible de lire la réponse de Todoist."
-        }
-      }
-    }
-    stderr: StdioCollector {
-      id: listErr
-      waitForEnd: true
-    }
+    property int generation: -1
+    property int revision: -1
+    property string view: "all"
+    property var accumulated: []
+    property var allResults: []
+    property var cursors: []
+    stdout: StdioCollector { id: listOut; waitForEnd: true }
+    stderr: StdioCollector { id: listErr; waitForEnd: true }
     onExited: function(exitCode) {
-      root.loading = false
-      if (exitCode !== 0) root.errorText = Model.errorMessageForExit(exitCode, listErr.text)
-      if (root.refreshPending) Qt.callLater(root.refresh)
-    }
-  }
-
-  // Independent background count for the bar badge (Settings → Bar Count).
-  // Best-effort: a failed fetch here just keeps the last known value — this
-  // is a bar-pill nicety, not core functionality the way the popup's own
-  // task list is, so it doesn't surface an error anywhere.
-  Process {
-    id: barCountProc
-    stdout: StdioCollector {
-      id: barCountOut
-      waitForEnd: true
-      onStreamFinished: {
-        var raw = String(text || "").trim()
-        if (raw === "") return
-        try {
-          var parsed = JSON.parse(raw)
-          var results = (parsed && parsed.results) ? parsed.results : []
-          root.barCountValue = Model.tasksForView(
-            Model.topLevelTasks(results), root.barCountMode).length
-        } catch (e) {
-          // Keep the last known value.
-        }
-      }
-    }
-    stderr: StdioCollector {
-      id: barCountErr
-      waitForEnd: true
-    }
-  }
-
-  function applyViewCount(view, raw) {
-    try {
-      var parsed = JSON.parse(String(raw || "").trim())
-      var results = (parsed && parsed.results) ? parsed.results : []
-      var count = Model.tasksForView(Model.topLevelTasks(results), view).length
-      if (view === "today") root.todayTaskCount = count
-      else if (view === "tomorrow") root.tomorrowTaskCount = count
-      else if (view === "inbox") root.inboxTaskCount = count
-      else root.allTaskCount = count
-    } catch (e) {
-      // Keep the last known count when a background count request fails.
-    }
-  }
-
-  Process {
-    id: todayCountProc
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.applyViewCount("today", text)
-    }
-  }
-
-  Process {
-    id: tomorrowCountProc
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.applyViewCount("tomorrow", text)
-    }
-  }
-
-  Process {
-    id: inboxCountProc
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.applyViewCount("inbox", text)
-    }
-  }
-
-  Process {
-    id: allCountProc
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.applyViewCount("all", text)
-    }
-  }
-
-  Process {
-    id: createProc
-    stderr: StdioCollector {
-      id: createErr
-      waitForEnd: true
-    }
-    onExited: function(exitCode) {
-      root.quickAddSubmitting = false
-      if (exitCode === 0) {
-        root.quickAddText = ""
-        quickAddField.text = ""
-        root.refresh()
-      } else {
-        root.errorText = Model.errorMessageForExit(exitCode, createErr.text)
-      }
+      // Defer until collectors have drained; no new fetch starts while loading.
+      Qt.callLater(function() { root.finishFetch(exitCode, listOut.text, listErr.text) })
     }
   }
 
   Process {
     id: actionProc
-    // Which task this run is closing — lets the failure path undo the
-    // optimistic strike-through for exactly that task, not whichever one
-    // happens to be at the front of a since-mutated queue/list.
-    property string pendingTaskId: ""
-    stderr: StdioCollector {
-      id: actionErr
-      waitForEnd: true
-    }
+    property var action: ({})
+    stderr: StdioCollector { id: actionErr; waitForEnd: true }
     onExited: function(exitCode) {
-      if (exitCode !== 0) {
-        root.errorText = Model.errorMessageForExit(exitCode, actionErr.text)
-        // The close didn't actually happen — don't let it still get
-        // removed 700ms later as if it had. Refresh right away too, since
-        // there's no completion animation to protect on a failure.
-        root.undoCompleting(actionProc.pendingTaskId)
-        root.refresh()
-      }
-      // On success, flushCompletedRemovals() (fired by the existing 700ms
-      // timer) is what triggers the refresh — see its own comment for why.
-      Qt.callLater(root.processActionQueue)
+      var completed = action
+      Qt.callLater(function() { root.finishAction(completed, exitCode, actionErr.text) })
     }
   }
 
-  Process {
-    id: deleteProc
-    stderr: StdioCollector {
-      id: deleteErr
-      waitForEnd: true
-    }
-    onExited: function(exitCode) {
-      if (exitCode !== 0) root.errorText = Model.errorMessageForExit(exitCode, deleteErr.text)
-      // Delete's optimistic removal is immediate and permanent (no delayed
-      // animation like complete has), so refreshing right away either way
-      // is safe — reconciles a failed delete's local removal on failure,
-      // confirms server-truth on success.
-      root.refresh()
-    }
-  }
-
-  Process {
-    id: editProc
-    stderr: StdioCollector {
-      id: editErr
-      waitForEnd: true
-    }
-    onExited: function(exitCode) {
-      if (exitCode !== 0) root.errorText = Model.errorMessageForExit(exitCode, editErr.text)
-      root.refresh()
-    }
-  }
-
-  Process {
-    id: dueProc
-    stderr: StdioCollector {
-      id: dueErr
-      waitForEnd: true
-    }
-    onExited: function(exitCode) {
-      if (exitCode !== 0) root.errorText = Model.errorMessageForExit(exitCode, dueErr.text)
-      root.refresh()
-    }
-  }
-
-  Process {
-    id: openUrlProc
-  }
+  Process { id: openUrlProc }
 
   Timer {
     id: completionRemovalTimer
@@ -796,39 +700,22 @@ Panel {
 
   FileView {
     id: settingsFile
-    path: root.settingsPath
+    path: ""
     watchChanges: false
-    atomicWrites: true
     printErrors: false
-    onLoaded: root.loadSettingsFromText(text())
-    onLoadFailed: root.loadSettingsFromText("")
+    onLoaded: if (root.stateReady) root.loadSettingsFromText(text())
+    onLoadFailed: {
+      if (root.stateReady) root.settingsError = "Impossible de lire les réglages Todoist."
+    }
   }
 
-  // Two polling timers, mutually exclusive by `root.opened` so they never
-  // both drive a refresh at once (they used to overlap: the 15-minute one
-  // ran unconditionally, the 5-minute one only gated on `opened` — meaning
-  // while the panel was open, both were live and could each independently
-  // trigger a fetch). Background poll keeps the bar's count fresh — and
-  // fresh only, no urgency — while the panel's closed and nobody's looking
-  // at the list; open poll is the only one that matters while someone
-  // actually has the panel up, so it's the only one that gets tightened.
-  // Neither is "aggressive" — every actual refresh (add/complete/edit/
-  // delete/view-switch) already happens immediately via refresh() itself;
-  // these two only cover the gaps between user actions.
+  // One visibility-dependent timer; refresh never overrides its running binding.
   Timer {
-    id: backgroundRefreshTimer
-    interval: 20 * 60 * 1000
-    running: !root.opened && root.apiToken !== ""
+    id: refreshTimer
+    interval: root.opened ? 2 * 60 * 1000 : 20 * 60 * 1000
+    running: root.apiToken !== "" && root.settingsLoaded
     repeat: true
-    onTriggered: { root.refresh(); root.refreshBarCount() }
-  }
-
-  Timer {
-    id: openRefreshTimer
-    interval: 2 * 60 * 1000
-    running: root.opened && root.apiToken !== ""
-    repeat: true
-    onTriggered: { root.refresh(); root.refreshBarCount() }
+    onTriggered: root.refresh()
   }
 
   // ---- Settings' keyboard-navigable controls. Plain Button/PanelActionButton
@@ -873,7 +760,7 @@ Panel {
     readonly property bool overdue: Model.taskIsOverdue(task)
     readonly property string dueLabel: Model.taskDueLabel(task)
     readonly property bool completing: task ? root.completingTaskIds.indexOf(task.id) !== -1 : false
-    readonly property bool editing: root.editingTaskIndex === rowIndex
+    readonly property bool editing: root.editingTaskId !== "" && task && root.editingTaskId === task.id
     // Todoist priority colors (API priority 4 = p1, the most urgent, down
     // to 1 = p4/no priority). Fixed, theme-independent hex — these carry a
     // specific meaning ("this is p1") the same way in every theme, unlike
@@ -929,7 +816,7 @@ Panel {
       iconText: row.completing ? "●" : "○"
       tooltipText: "Marquer comme terminée (Espace)"
       foreground: row.textColor
-      enabled: !row.completing
+      enabled: row.task && !root.taskIsPending(row.task.id)
       onClicked: root.requestComplete(row.task ? row.task.id : "")
     }
 
@@ -1027,7 +914,7 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       clip: true
-      blocked: tokenField.activeFocus || quickAddField.activeFocus || root.editingTaskIndex !== -1 || root.helpOpen
+      blocked: tokenField.activeFocus || quickAddField.activeFocus || root.editingTaskId !== "" || root.helpOpen
       // First Escape backs out of Settings to the task list; a second one
       // (now that settingsView is false) closes the panel.
       onCloseRequested: {
@@ -1239,7 +1126,7 @@ Panel {
               NavButton {
                 id: saveTokenButton
                 text: "Enregistrer le jeton"
-                enabled: root.tokenDraft.trim() !== ""
+                enabled: root.stateReady && root.settingsLoaded && root.tokenDraft.trim() !== ""
                 onClicked: root.saveToken()
               }
 
@@ -1613,7 +1500,6 @@ Panel {
               // stays quiet rather than growing the panel with a redundant
               // "Loading…" row underneath tasks that are already showing.
               visible: root.loading && root.tasks.length === 0
-              height: visible ? implicitHeight : 0
               width: parent.width
               text: "Chargement…"
               color: Qt.darker(root.contentForeground, 1.3)
@@ -1623,7 +1509,6 @@ Panel {
 
             Text {
               visible: !root.loading && root.tasks.length === 0 && root.errorText === "" && root.apiToken !== ""
-              height: visible ? implicitHeight : 0
               width: parent.width
               text: root.emptyStateMessage
               color: Qt.darker(root.contentForeground, 1.3)
@@ -1633,7 +1518,6 @@ Panel {
 
             Text {
               visible: root.errorText !== ""
-              height: visible ? implicitHeight : 0
               width: parent.width
               text: root.errorText
               color: Color.urgent

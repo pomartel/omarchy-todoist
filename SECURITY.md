@@ -6,9 +6,10 @@ This plugin stores your Todoist personal API token locally and sends it to `http
 
 In short:
 
-- Your API token is stored at `~/.local/state/omarchy/omarchy-todoist/settings.json`, `chmod 600`'d immediately after every write.
+- Your API token is stored at `~/.local/state/omarchy/omarchy-todoist/settings.json`, written atomically with mode `600` inside a mode `700` directory. Tokens and settings JSON are passed to subprocesses only through stdin.
 - The token is only ever sent to `api.todoist.com`, in an `Authorization: Bearer` header, over HTTPS.
-- The only system file this plugin can modify outside its own state directory is `~/.config/hypr/bindings.lua`, and only when you explicitly set a keyboard shortcut from Settings (backed up first, rolled back automatically on a bad reload — see the README for details).
+- The plugin writes only its own state directory. It does not modify Hyprland bindings.
+- Removing or replacing the token invalidates old responses and discards queued actions. A request already sent to Todoist may still finish on the server.
 - Nothing runs with elevated privileges.
 
 ## Reporting a vulnerability

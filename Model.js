@@ -181,7 +181,7 @@ function tasksForView(tasks, view) {
 // ("tomorrow", "next Monday", "3/5", "at 5pm", a deadline in {}, etc.).
 // French date expressions are included so "lavage demain" is sent unchanged
 // to Todoist instead of receiving the fallback "today" suffix.
-var DUE_HINT_RE = /\b(today|tonight|tomorrow|tmrw|tom|next|mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|aujourd'hui|aujourd’hui|demain|apres-demain|après-demain|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|janvier|fevrier|février|mars|avril|mai|juin|juillet|aout|août|septembre|octobre|novembre|decembre|décembre)\b|\d{1,2}[\/\-]\d{1,2}|\d{1,2}\s*(am|pm)\b|\bat\s+\d|\bin\s+\d+\s*(day|week|hour|min)|\bà\s+\d|\bdans\s+\d+\s*(jour|jours|semaine|semaines|heure|heures|minute|minutes)\b|\{[^}]*\}/i
+var DUE_HINT_RE = /\b(today|tonight|tomorrow|tmrw|tom|next|mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|aujourd'hui|aujourd’hui|demain|apres-demain|après-demain|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|janvier|fevrier|février|mars|avril|mai|juin|juillet|aout|août|septembre|octobre|novembre|decembre|décembre)\b|\d{1,2}[\/\-]\d{1,2}|\d{1,2}\s*(am|pm)\b|\bat\s+\d|\bin\s+\d+\s*(day|week|hour|min)|(?:^|\s)à\s+\d|\b\d{1,2}(?::[0-5]\d|\s*h(?:\s*[0-5]\d)?)\b|\b(?:sans date|aucune date|no date)\b|\bdans\s+\d+\s*(jour|jours|semaine|semaines|heure|heures|minute|minutes)\b|\{[^}]*\}/i
 
 function quickAddHasDueHint(text) {
   return DUE_HINT_RE.test(text)
@@ -214,4 +214,22 @@ function errorMessageForExit(exitCode, stderrText) {
   if (exitCode === 28) return "Todoist took too long to respond."
   var firstLine = text.split("\n")[0]
   return "Something went wrong talking to Todoist" + (firstLine !== "" ? (": " + firstLine) : ".")
+}
+
+// Validate each page before accepting a snapshot. Missing results must not
+// silently replace the user's tasks with an empty list.
+function parseTaskPage(text) {
+  var parsed
+  try { parsed = JSON.parse(text) } catch (e) { throw new Error("Réponse Todoist invalide.") }
+  if (!parsed || !Array.isArray(parsed.results)
+      || !(parsed.next_cursor === null || (typeof parsed.next_cursor === "string" && parsed.next_cursor !== ""))
+      || parsed.results.some(function(task) {
+        return !task || typeof task.id !== "string" || task.id === "" || typeof task.content !== "string"
+      })) throw new Error("Réponse Todoist invalide.")
+  return parsed
+}
+
+function curlConfigEscape(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+    .replace(/\r/g, "\\r").replace(/\n/g, "\\n")
 }

@@ -3,3 +3,6 @@
 
 private
 
+
+__pycache__/
+*.pyc

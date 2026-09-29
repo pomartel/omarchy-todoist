@@ -57,21 +57,24 @@ constraints, and a few things that didn't work the first time.
   right on the icon.
 - Panel lists matching tasks, sorted by due date then priority, color-coded
   by Todoist priority (**p1 red, p2 yellow, p3 blue, p4 normal**). The Today
-  view splits into **Overdue** and **Today** sections so you can tell at a
-  glance what's actually late.
-- Click the circle next to a task to mark it complete (updates instantly,
-  syncs to Todoist in the background).
+  view includes overdue tasks, whose due labels are highlighted.
+- Click the circle next to a task to mark it complete. The row is struck
+  through immediately and removed after server confirmation and a short delay.
+  Failed actions stay visible with an error; edits and deletions wait for confirmation.
 - Quick-add box uses Todoist's own Quick Add parser — `p1`–`p4` priority,
   `#Project`, `@label`, and natural-language due dates (`tomorrow at 5pm`,
   `next Monday`) all work exactly like typing into Todoist itself. A bare
-  task with no date in it (`Buy milk`) defaults to due **today**.
+  task with no date in it (`Buy milk`) defaults to the selected Today or
+  Tomorrow view; Inbox and All leave it undated. Explicit `sans date` is preserved.
 - **Today / Tomorrow / Inbox / All** quick-view tabs above the list.
 - Settings view (gear icon) to paste your API token and manage the above.
 - Refreshes immediately whenever you open the popup, and whenever you add,
   complete, edit, or delete a task — not just on a timer. Otherwise polls
   every 2 minutes while the popup's open, or every 20 minutes in the
   background while it's closed (never both at once). Overlapping refresh
-  requests are coalesced into one, so nothing fires twice.
+  requests are coalesced. All pages are fetched before publishing a snapshot;
+  Today, Tomorrow, All, and the bar count share those results. Inbox shows
+  undated Inbox tasks. Subtasks are excluded from all views and counts.
 - Matches whatever Omarchy theme you're running — the panel pulls its
   colors from the shell's own theme system, so it looks native under light,
   dark, or any custom accent color, with no separate config to keep in sync.
@@ -153,14 +156,16 @@ handler to see.
 
 ## External dependencies and system-level modifications
 
-This plugin runs `curl`, `mkdir`, `chmod`, and `xdg-open` (only when you press
-Enter on a task, to open it in your browser) via Quickshell's `Process` — all
-standard on any Omarchy install, no extra packages required.
-`curl` is the only thing that talks to the network; every request goes
-straight to `https://api.todoist.com/api/v1/` with your token in an
-`Authorization: Bearer` header. Nothing else is contacted, and nothing runs
-with elevated
-privileges.
+This plugin requires `curl` and Python 3. API requests run through
+Quickshell's `Process`; `settings.py` uses Python's standard library for
+private, atomic settings writes. The token is passed through stdin, never
+command arguments. Curl's default configuration file is disabled.
+Requests go to `https://api.todoist.com/api/v1/` over HTTPS.
+
+Opening Todoist uses `xdg-open` from Settings or
+`omarchy-launch-or-focus-webapp` for a selected task. Ctrl-clicking a task
+link opens its HTTP(S) URL with the desktop URL handler. Nothing runs with
+elevated privileges, and the plugin does not edit keyboard bindings.
 
 Adding/removing the bar icon only touches your own `~/.config/omarchy/shell.json` bar
 layout, the same as any other bar widget you add or remove through
@@ -170,9 +175,10 @@ layout, the same as any other bar widget you add or remove through
 
 - `~/.local/state/omarchy/omarchy-todoist/settings.json` —
   your Todoist API token, quick-view, bar count, and popup size. Created
-  on first save; the file is `chmod 600`'d right after writing since it holds
-  a secret. Delete it (or use **Remove token** in Settings) to disconnect the
-  plugin from your account.
+  at startup inside a mode `700` directory. Each write uses a mode `600`
+  temporary file and an atomic replacement; save failures appear in the panel.
+  Use **Remove token** in Settings to disconnect immediately, or delete the
+  file and restart the shell. Settings changes do not reload from disk live.
 
 ## Uninstalling
 
@@ -183,13 +189,19 @@ want your token gone too.
 ## Todoist API
 
 Uses the [Todoist API v1](https://developer.todoist.com/api/v1/):
-`GET /tasks/filter` (or plain `GET /tasks` for the All view), `POST
+`GET /tasks` for a shared active-task snapshot and `GET /tasks/filter` for
+Inbox, both with cursor pagination. Mutations are serialized: `POST
 /tasks/quick` (Quick Add, natural-language parsing) for new tasks, `POST
-/tasks/{id}` to edit a task's title, `POST /tasks/{id}/close` to complete,
+/tasks/{id}` to edit a task's title or due date, `POST /tasks/{id}/close` to complete,
 `DELETE /tasks/{id}` to delete. `Enter` opens
-`https://app.todoist.com/app/task/{id}` in your default browser. The older
+`https://app.todoist.com/app/task/{id}` in your Todoist webapp. The older
 REST API v2 was retired by Todoist in February 2026, so this plugin only
 supports the current API.
+
+For a credential-free health check, run
+`qs ipc -p /usr/share/omarchy/shell call omarchy-todoist status`.
+It reports connection presence, loading state, last successful sync, task count,
+and whether an error is present; it does not expose the token or task content.
 
 ## Contributing
 

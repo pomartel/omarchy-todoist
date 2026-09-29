@@ -94,6 +94,17 @@ BarWidget {
   IpcHandler {
     target: "omarchy-todoist"
 
+    // Operational state only: never expose credentials or task content over IPC.
+    function status(): string {
+      var panel = panelLoader.item
+      return JSON.stringify({
+        connected: root.hasToken,
+        loading: panel ? panel.loading : false,
+        lastSyncedAt: panel ? panel.lastSyncedAt : 0,
+        taskCount: root.taskCount,
+        hasError: panel ? panel.errorText !== "" : false
+      })
+    }
     function refresh(): void { root.broadcast("refresh") }
     function open(): void { root.open() }
     function close(): void { root.close() }
