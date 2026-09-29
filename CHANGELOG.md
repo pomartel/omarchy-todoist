@@ -2,6 +2,10 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.18.5 — Compact panel padding
+
+- Reduce outer panel padding from 20 to 12 scaled pixels on every side.
+
 ## v1.18.4 — Text-only tabs
 
 - Remove tab icons, keeping labels, task counts, and equal widths.
