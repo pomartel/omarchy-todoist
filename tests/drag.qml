@@ -116,6 +116,18 @@ ShellRoot {
       verify(payload().text.indexOf("#Travail") >= 0)
       verify(payload().text.indexOf("aujourd’hui") < 0)
     }
+    function test_add_composer_stays_at_bottom() {
+      panel.openComposer()
+      tryVerify(function() { return findChild(panel, "taskComposer") !== null })
+      wait(150)
+      var list = findChild(panel, "taskListView")
+      var form = findChild(panel, "taskComposer")
+      var top = form.mapToItem(list, 0, 0).y
+      verify(top >= 0)
+      verify(top + form.height <= list.height + 1)
+      verify(top > 0)
+      grabImage(window.contentItem).save("/tmp/todoist-add-bottom.png")
+    }
     function test_task_details() {
       panel.showTaskDetails(panel.tasks[0],false)
       tryVerify(function() { return findChild(panel,"editTaskButton") !== null })
@@ -194,23 +206,26 @@ ShellRoot {
       mouseRelease(item, p.x, p.y)
       compare(payload().due_date, iso)
     }
-    function test_subtasks_stay_with_parent() {
+    function test_subtasks_only_in_details() {
       panel.allTasks = [{id:"a",content:"Parent",due:{date:Model.todayIsoDate()}},
-        {id:"x",content:"First child",parent_id:"a",day_order:0},
-        {id:"y",content:"Second child",parent_id:"a",day_order:1},
-        {id:"b",content:"Another parent",due:{date:Model.todayIsoDate()}}]
+        {id:"x",content:"First child",parent_id:"a"},
+        {id:"y",content:"Second child",parent_id:"a"}]
       panel.applySnapshot(); wait(100)
-      findChild(panel, "taskListView").positionViewAtBeginning(); wait(100)
-      var item = start("y"), p = move(item, pointer("x"), 60, 1)
-      verify(panel.dragDrop.plan !== undefined)
-      compare(panel.dragDrop.plan.orders.y, 0)
-      // Keep the second target visible when narrow layouts have scrolled.
-      findChild(panel, "taskListView").positionViewAtIndex(panel.tasks.findIndex(function(t) { return t.id === "b" }), ListView.Contain)
-      wait(30)
-      p = move(item, pointer("b"), 60, pointer("b").height / 2)
-      compare(panel.dragDrop, null)
-      mouseRelease(item, p.x, p.y)
-      compare(panel.captured.length, 0)
+      compare(panel.tasks.length, 1)
+      compare(pointer("x"), null)
+      compare(findChild(panel, "taskListView").itemAtIndex(0).taskTop, 0)
+      panel.showTaskDetails(panel.tasks[0], false)
+      wait(150)
+      grabImage(window.contentItem).save("/tmp/todoist-subtasks-details.png")
+      var details = findChild(panel, "editTaskButton").parent.parent.parent
+      compare(details.subtasks.length, 2)
+      compare(details.subtasks[0].id, "x")
+      compare(details.subtasks[1].id, "y")
+      findChild(panel, "taskDetailsPopup").close()
+      panel.quickView = "undated"
+      panel.allTasks = [{id:"a",content:"Sans date"}]
+      panel.applySnapshot(); wait(100)
+      compare(findChild(panel, "taskListView").itemAtIndex(0).taskTop, 0)
     }
     function test_upcoming_heading() {
       var date = new Date(); date.setDate(date.getDate() + 2)

@@ -2,6 +2,12 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.21.2 — Main tasks only
+
+- Open the add-task form below the list without scrolling it to the top.
+- Show only main tasks in the list and its counts; subtasks remain available in task details.
+- Remove section headings from Aujourd’hui and Sans date while retaining Bientôt’s day headings.
+
 ## v1.21.1 — Compact OmaTasks header
 
 - Keep Ajouter une tâche only at the bottom of the list.

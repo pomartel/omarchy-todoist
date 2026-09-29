@@ -57,13 +57,11 @@ constraints, and a few things that didn't work the first time.
   right on the icon.
 - Panel lists matching tasks, sorted by date group and manual order (then due date and priority), using OmaTasks’ original task rows and checkboxes colored
   by Todoist priority (**p1 red, p2 orange, p3 blue, p4 normal**). Task titles
-  retain the normal text color. Tasks are grouped
-  under **En retard**, **Aujourd’hui**, **À venir**, and **Sans date**, with
-  empty groups omitted. Today rows omit a redundant date label but retain
+  retain the normal text color. Aujourd’hui and Sans date have no section headings. Today rows omit a redundant date label but retain
   any due time. Bientôt shows tomorrow through six days from today
   (excluding today), grouped under Demain and then French weekday headings.
   Only days containing tasks are shown. Rows keep due times but omit repeated
-  date labels; subtasks remain under their parent’s day. Secondary text
+  date labels. Secondary text
   and placeholders use a higher-contrast version of the theme foreground.
   An omatasks-style metadata line places green time/date details (red when overdue)
   on the left and a muted project name with `#` on the right. Project and picker metadata are loaded through a one-minute Sync cache.
@@ -75,13 +73,12 @@ constraints, and a few things that didn't work the first time.
   `lundi prochain`) all work exactly like typing into Todoist itself. A bare
   task with no date in it (`Buy milk`) defaults to today in Today and tomorrow in Bientôt; Sans date leaves it undated. Explicit `sans date` is preserved.
 - **Aujourd’hui / Bientôt / Sans date** quick-view tabs use OmaTasks’ equal-width buttons, with its settings cog on the right. Hover a tab for its task count.
-- Drag task text to reorder within a group. Main tasks move with their subtasks;
-  subtasks reorder among siblings without changing parents. Manual order is saved
+- Drag task text to reorder within a group. Subtask relationships stay unchanged. Manual order is saved
   through Todoist's [day-order API](https://developer.todoist.com/api/v1/).
 - Drop on **Aujourd’hui** to schedule today, **Bientôt** for tomorrow, or **Sans date** to
   remove the due date. In Bientôt, drop on another day heading or a main task in
   that section to schedule that day. A date drop updates only the dragged task;
-  subtasks still appear under their parent. Dragging near the list edges scrolls;
+  subtasks keep their existing due dates. Dragging near the list edges scrolls;
   **Escape** or dropping outside a destination cancels. Failed saves show an error
   and reload the server state.
 - Settings view (gear icon) to paste your API token and manage the above.
@@ -91,12 +88,9 @@ constraints, and a few things that didn't work the first time.
   background while it's closed (never both at once). Overlapping refresh
   requests are coalesced. All pages are fetched before publishing a snapshot;
   Aujourd’hui, Bientôt, Sans date, and the bar count share those results.
-  Sans date shows undated main tasks from every project with their subtasks. Active subtasks are included in views and counts,
-  nested compactly beneath their parent, with indentation instead of repeated
-  parent names, including undated subtasks and deeper
-  descendants. The main task determines the view and date group for its whole
-  subtree; any distinct subtask due dates remain visible on the rows. Counts
-  include every displayed task and subtask. Stored due dates are unchanged.
+  Sans date shows undated main tasks from every project. Main lists and counts
+  exclude subtasks; open a parent’s details to view and complete its subtasks.
+  All active tasks remain cached for these details and parent completion.
 - Matches whatever Omarchy theme you're running — the panel pulls its
   colors from the shell's own theme system, so it looks native under light,
   dark, or any custom accent color, with no separate config to keep in sync.

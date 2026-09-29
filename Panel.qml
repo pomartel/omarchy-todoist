@@ -517,7 +517,7 @@ Panel {
     root.composerOpen = true
     refreshProjects()
     Qt.callLater(function() {
-      taskListView.contentY = Math.max(0, taskListView.contentHeight - taskListView.footerItem.height)
+      taskListView.positionViewAtEnd()
       if (taskListView.footerItem && taskListView.footerItem.composer) taskListView.footerItem.composer.focusInput()
     })
   }
@@ -834,11 +834,12 @@ Panel {
 
   function applySnapshot() {
     var selected = selectedTask()
+    var mainTasks = root.allTasks.filter(function(t) { return !t.parent_id && !t.parent })
     var views = {
-      today: Model.taskTreeForView(root.allTasks, "today"),
-      upcoming: Model.taskTreeForView(root.allTasks, "upcoming"),
-      undated: Model.taskTreeForView(root.allTasks, "undated"),
-      all: Model.taskTreeForView(root.allTasks, "all")
+      today: Model.taskTreeForView(mainTasks, "today"),
+      upcoming: Model.taskTreeForView(mainTasks, "upcoming"),
+      undated: Model.taskTreeForView(mainTasks, "undated"),
+      all: Model.taskTreeForView(mainTasks, "all")
     }
     root.tasks = views[root.quickView] || views.all
     if (root.detailTask) {
@@ -1727,7 +1728,7 @@ Panel {
                     initialDue: root.quickView === "today" ? "aujourd’hui" : root.quickView === "upcoming" ? "demain" : ""
                     onFinished: { root.composerOpen = false; keyCatcher.forceActiveFocus() }
                     onCancelled: { root.composerOpen = false; keyCatcher.forceActiveFocus() }
-                    Component.onCompleted: Qt.callLater(focusInput)
+                    Component.onCompleted: Qt.callLater(function() { taskListView.positionViewAtEnd(); focusInput() })
                   }
                 }
               }
@@ -1738,8 +1739,8 @@ Panel {
                 required property int index
                 readonly property real taskTop: delegateColumn.y + delegateRow.y
                 readonly property string dateGroup: modelData.dateGroup
-                readonly property bool startsGroup: index === 0
-                  || root.tasks[index - 1].dateGroup !== dateGroup
+                readonly property bool startsGroup: root.quickView === "upcoming"
+                  && (index === 0 || root.tasks[index - 1].dateGroup !== dateGroup)
                 width: taskListView.width
                 height: delegateColumn.y + delegateColumn.implicitHeight
 
@@ -1759,7 +1760,7 @@ Panel {
                   Item {
                     width: parent.width
                     visible: delegateItem.startsGroup
-                    height: Style.space(40)
+                    height: visible ? Style.space(40) : 0
                     Oma.Label {
                       anchors.left: parent.left; anchors.right: parent.right
                       anchors.bottom: parent.bottom; anchors.bottomMargin: Style.space(9)

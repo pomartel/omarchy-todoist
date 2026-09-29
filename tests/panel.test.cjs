@@ -211,20 +211,20 @@ test('Enter in settings activates its control without editing a task', () => {
   press('Return'); assert.equal(activated,1); assert.equal(r.editingTaskId,'');
 });
 
-test('undated subtasks follow the main task in Today and remain individually editable',()=>{
+test('Today counts main tasks while retaining undated subtasks for details',()=>{
   const {root:r,c,page,calls}=harness();
   const parent=task('parent',c.Model.todayIsoDate());
   const child={...task('child'),parent_id:'parent'};
   r.refresh(); page([child,parent]);
-  assert.deepEqual(Array.from(r.tasks,t=>t.id),['parent','child']);
-  assert.equal(r.tasks[1].parentTitle,'parent'); assert.equal(r.todayTaskCount,2);
-  assert.equal(r.allTaskCount,2); assert.equal(r.barCountValue,2);
+  assert.deepEqual(Array.from(r.tasks,t=>t.id),['parent']);
+  assert.equal(r.allTasks.find(t=>t.id==='child').parent_id,'parent');
+  assert.equal(r.todayTaskCount,1);
+  assert.equal(r.allTaskCount,1); assert.equal(r.barCountValue,1);
   assert.equal(r.undatedTaskCount,0);
-  r.selectedTaskIndex=1; r.startEditSelectedTask(); r.editDraft='Edited child'; r.commitEditTask();
-  assert.match(calls.at(-1).command.at(-1), /\/tasks\/child$/);
+
 });
 
-test('Sans date and Upcoming include the whole subtree when the root matches',()=>{
+test('main views hide subtasks but keep them cached for task details',()=>{
   const {root:r,c,page}=harness();
   const tomorrow=c.Model.localDateFromIso(c.Model.todayIsoDate()); tomorrow.setDate(tomorrow.getDate()+1);
   const date=tomorrow.getFullYear()+'-'+c.Model.pad2(tomorrow.getMonth()+1)+'-'+c.Model.pad2(tomorrow.getDate());
@@ -232,12 +232,13 @@ test('Sans date and Upcoming include the whole subtree when the root matches',()
   const child={...task('child'),parent_id:'parent'};
   const inbox=task('undated'); const nested={...task('nested',date),parent_id:'undated'};
   r.refresh(); page([parent,child,inbox,nested]);
-  assert.equal(r.upcomingTaskCount,2); assert.equal(r.undatedTaskCount,2);
+  assert.equal(r.upcomingTaskCount,1); assert.equal(r.undatedTaskCount,1);
+  assert.equal(r.allTasks.length,4);
   r.quickView='upcoming'; r.applySnapshot();
-  assert.deepEqual(Array.from(r.tasks,t=>t.id),['parent','child']);
+  assert.deepEqual(Array.from(r.tasks,t=>t.id),['parent']);
   r.quickView='undated'; r.applySnapshot();
-  assert.deepEqual(Array.from(r.tasks,t=>t.id),['undated','nested']);
-  assert.equal(r.tasks[1].dateGroup,'Sans date');
+  assert.deepEqual(Array.from(r.tasks,t=>t.id),['undated']);
+  assert.equal(r.tasks[0].dateGroup,'Sans date');
 });
 
 test('completing a main task removes its entire cached subtree together',()=>{
