@@ -53,13 +53,14 @@ constraints, and a few things that didn't work the first time.
 
 - Bar pill shows a theme-colored Todoist mark, matching the look of the
   built-in Wi-Fi/Bluetooth panels. Hover it for your current task count, or
-  turn on **Settings → Bar Count** to show a live Today/Inbox/All count
+  turn on **Settings → Bar Count** to show a live Today/Sans date/total count
   right on the icon.
 - Panel lists matching tasks, sorted by due date then priority, color-coded
   by Todoist priority (**p1 red, p2 yellow, p3 blue, p4 normal**). Tasks are grouped
   under **En retard**, **Aujourd’hui**, **À venir**, and **Sans date**, with
-  empty groups omitted. The Tomorrow view uses **Demain**. Today/tomorrow
-  rows omit a redundant date label but retain any due time. Secondary text
+  empty groups omitted. Today rows omit a redundant date label but retain
+  any due time. Prochainement shows tomorrow through six days from today
+  (excluding today), with due dates visible on each row. Secondary text
   and placeholders use a higher-contrast version of the theme foreground.
 - Click the circle next to a task to mark it complete. The row is struck
   through immediately and removed after server confirmation and a short delay.
@@ -67,17 +68,16 @@ constraints, and a few things that didn't work the first time.
 - Quick-add box uses Todoist's own Quick Add parser — `p1`–`p4` priority,
   `#Project`, `@label`, and natural-language due dates (`tomorrow at 5pm`,
   `next Monday`) all work exactly like typing into Todoist itself. A bare
-  task with no date in it (`Buy milk`) defaults to the selected Today or
-  Tomorrow view; Inbox and All leave it undated. Explicit `sans date` is preserved.
-- **Today / Tomorrow / Inbox / All** quick-view tabs above the list.
+  task with no date in it (`Buy milk`) defaults to today in Today and tomorrow in Prochainement; Sans date leaves it undated. Explicit `sans date` is preserved.
+- **Auj / Prochainement / Sans date** quick-view tabs above the list.
 - Settings view (gear icon) to paste your API token and manage the above.
 - Refreshes immediately whenever you open the popup, and whenever you add,
   complete, edit, or delete a task — not just on a timer. Otherwise polls
   every 2 minutes while the popup's open, or every 20 minutes in the
   background while it's closed (never both at once). Overlapping refresh
   requests are coalesced. All pages are fetched before publishing a snapshot;
-  Today, Tomorrow, All, and the bar count share those results. Inbox shows
-  undated Inbox tasks. Active subtasks are included in views and counts,
+  Auj, Prochainement, Sans date, and the bar count share those results.
+  Sans date shows undated main tasks from every project with their subtasks. Active subtasks are included in views and counts,
   nested compactly beneath their parent, with indentation instead of repeated
   parent names, including undated subtasks and deeper
   descendants. The main task determines the view and date group for its whole
@@ -121,7 +121,7 @@ point never shifts as your count changes.
 
 - **Open/close**: click the bar icon or run
   `omarchy-shell shell toggle omarchy-todoist`.
-- Click **Today**, **Inbox**, or **All** to switch views.
+- Click **Auj**, **Prochainement**, or **Sans date** to switch views.
 - Click a task's circle to mark it complete.
 - Task titles render Markdown links. Ctrl-click a link to open it in your
   default browser; a plain click selects the task.
@@ -140,8 +140,8 @@ The whole panel is operable without a mouse:
 | Key | Action |
 | --- | --- |
 | `Escape` | Back out of Settings to the task list (works from any Settings field too); press again to close the panel. While the Add-a-task box has focus, just leaves the box instead |
-| `Tab` / `Shift+Tab` | Cycle Today → Tomorrow → Inbox → All. Inside Settings, instead walks every control in order — token field, Save/Remove token, bar count, and the General/Advanced buttons and steppers — scrolling as needed to keep the focused control in view |
-| `a` / `d` / `i` / `t` | Jump straight to the Today, Tomorrow, Inbox, or All view. Inside Settings, `t` opens Todoist in the browser instead |
+| `Tab` / `Shift+Tab` | Cycle Auj → Prochainement → Sans date. Inside Settings, instead walks every control in order — token field, Save/Remove token, bar count, and the General/Advanced buttons and steppers — scrolling as needed to keep the focused control in view |
+| `a` / `d` / `i` | Jump straight to Auj, Prochainement, or Sans date. Inside Settings, `t` opens Todoist in the browser |
 | `Ctrl` + `a` / `d` / `i` | For the selected task, set its due date to today, tomorrow, or none |
 | `p` | Toggle Settings open/closed |
 | `↑`/`↓` or `k`/`j` | Move the selection up/down the task list |
@@ -198,8 +198,8 @@ want your token gone too.
 ## Todoist API
 
 Uses the [Todoist API v1](https://developer.todoist.com/api/v1/):
-`GET /tasks` for a shared active-task snapshot and `GET /tasks/filter` for
-Inbox, both with cursor pagination. Mutations are serialized: `POST
+`GET /tasks` with cursor pagination for one shared active-task snapshot
+across every project. Mutations are serialized: `POST
 /tasks/quick` (Quick Add, natural-language parsing) for new tasks, `POST
 /tasks/{id}` to edit a task's title or due date, `POST /tasks/{id}/close` to complete,
 `DELETE /tasks/{id}` to delete. `o` opens

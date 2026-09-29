@@ -2,6 +2,15 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.17 — Focused task views
+
+- Align subtask checkboxes with their parent’s text column, including deeper nesting.
+
+- Replace Inbox with Sans date across every project and remove the Tout tab.
+- Replace Demain with Prochainement: tomorrow through six days from today, including each main task's full subtree.
+- Keep individual due dates visible and adapt tab layout to fit the longer label.
+- Migrate the saved Tomorrow view to Upcoming. `d` opens it; Ctrl+d still schedules a task for tomorrow.
+
 ## v1.16.2 — Compact subtasks
 
 - Remove repeated parent titles from subtask rows; indentation conveys the hierarchy.

@@ -27,7 +27,7 @@ Panel {
   readonly property string settingsPath: stateDir + "/settings.json"
 
   property string apiToken: ""
-  // "today" | "tomorrow" | "inbox" | "all" — the four quick views.
+  // "today" | "upcoming" | "undated" — the three quick views.
   property string quickView: "today"
   property bool settingsLoaded: false
   property bool settingsView: true
@@ -89,7 +89,6 @@ Panel {
   property int accountGeneration: 0
   property int dataRevision: 0
   property var allTasks: []
-  property var inboxTasks: []
   property var pendingTaskIds: []
   property string pendingSettings: ""
   property bool stateReady: false
@@ -108,8 +107,8 @@ Panel {
   property string barCountMode: "hide"
   property int barCountValue: 0
   property int todayTaskCount: 0
-  property int tomorrowTaskCount: 0
-  property int inboxTaskCount: 0
+  property int upcomingTaskCount: 0
+  property int undatedTaskCount: 0
   property int allTaskCount: 0
 
   property string tokenDraft: ""
@@ -124,13 +123,12 @@ Panel {
   readonly property color secondaryForeground: Util.alpha(root.contentForeground, 0.85)
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
 
-  readonly property string emptyStateMessage: root.quickView === "inbox" ? "Inbox est vide."
-    : root.quickView === "tomorrow" ? "Rien à faire demain."
-    : root.quickView === "all" ? "Aucune tâche pour le moment."
+  readonly property string emptyStateMessage: root.quickView === "undated" ? "Aucune tâche sans date."
+    : root.quickView === "upcoming" ? "Rien à faire dans les six prochains jours."
     : "Rien à faire. Tout est en ordre."
 
   readonly property string barCountModeLabel: root.barCountMode === "today" ? "aujourd’hui"
-    : root.barCountMode === "inbox" ? "dans Inbox"
+    : root.barCountMode === "undated" ? "sans date"
     : root.barCountMode === "all" ? "au total"
     : ""
 
@@ -181,10 +179,14 @@ Panel {
       parsed = {}
     }
     if (typeof parsed.apiToken === "string") root.apiToken = Model.safeTrim(parsed.apiToken)
-    if (["today", "tomorrow", "inbox", "all"].indexOf(parsed.quickView) !== -1) root.quickView = parsed.quickView
+    if (parsed.quickView === "tomorrow") parsed.quickView = "upcoming"
+    if (parsed.quickView === "inbox") parsed.quickView = "undated"
+    if (parsed.quickView === "all") parsed.quickView = "today"
+    if (parsed.barCountMode === "inbox") parsed.barCountMode = "undated"
+    if (["today", "upcoming", "undated"].indexOf(parsed.quickView) !== -1) root.quickView = parsed.quickView
     if (typeof parsed.panelWidth === "number") root.panelWidth = Math.max(260, Math.min(700, parsed.panelWidth))
     if (typeof parsed.panelHeight === "number") root.panelHeight = Math.max(240, Math.min(800, parsed.panelHeight))
-    if (["hide", "today", "inbox", "all"].indexOf(parsed.barCountMode) !== -1) root.barCountMode = parsed.barCountMode
+    if (["hide", "today", "undated", "all"].indexOf(parsed.barCountMode) !== -1) root.barCountMode = parsed.barCountMode
     root.settingsLoaded = true
     root.settingsView = root.apiToken === ""
     if (root.apiToken !== "") refresh()
@@ -219,11 +221,10 @@ Panel {
     root.pendingRemovalIds = []
     completionRemovalTimer.stop()
     root.allTasks = []
-    root.inboxTasks = []
     root.tasks = []
     root.todayTaskCount = 0
-    root.tomorrowTaskCount = 0
-    root.inboxTaskCount = 0
+    root.upcomingTaskCount = 0
+    root.undatedTaskCount = 0
     root.allTaskCount = 0
     root.barCountValue = 0
     root.lastSyncedAt = 0
@@ -286,7 +287,7 @@ Panel {
   function settingsFocusChain() {
     var chain = [tokenField, saveTokenButton]
     if (root.apiToken !== "") chain.push(removeTokenButton)
-    chain.push(barCountHideButton, barCountTodayButton, barCountInboxButton, barCountAllButton)
+    chain.push(barCountHideButton, barCountTodayButton, barCountUndatedButton, barCountAllButton)
     // openTodoistButton is deliberately not part of the chain — it launches
     // an external browser, which can steal window focus from the panel
     // mid-navigation. Still reachable by mouse or the "t" shortcut.
@@ -342,9 +343,7 @@ Panel {
     }
   }
 
-  // ---- Quick views. Today/tomorrow fetch all active tasks and are filtered
-  //      locally so their dates use the machine timezone. Inbox uses
-  //      Todoist's filter endpoint; all hits plain /tasks.
+  // All three views share a single paginated snapshot across every project.
   function selectQuickView(view) {
     if (view === root.quickView) return
     root.quickView = view
@@ -355,7 +354,7 @@ Panel {
     refresh()
   }
 
-  readonly property var quickViewOrder: ["today", "tomorrow", "inbox", "all"]
+  readonly property var quickViewOrder: ["today", "upcoming", "undated"]
 
   function cycleQuickView(direction) {
     var idx = root.quickViewOrder.indexOf(root.quickView)
@@ -464,7 +463,7 @@ Panel {
   function quickAddTextForView(content) {
     if (Model.quickAddHasDueHint(content)) return content
     if (root.quickView === "today") return content + " aujourd'hui"
-    if (root.quickView === "tomorrow") return content + " demain"
+    if (root.quickView === "upcoming") return content + " demain"
     return content
   }
 
@@ -537,37 +536,31 @@ Panel {
     var ids = Model.taskIdsWithDescendants(root.allTasks, root.pendingRemovalIds)
     root.pendingRemovalIds = []
     root.allTasks = root.allTasks.filter(function(t) { return ids.indexOf(t.id) === -1 })
-    root.inboxTasks = root.inboxTasks.filter(function(t) { return ids.indexOf(t.id) === -1 })
     root.completingTaskIds = root.completingTaskIds.filter(function(id) { return ids.indexOf(id) === -1 })
     root.pendingTaskIds = root.pendingTaskIds.filter(function(id) { return ids.indexOf(id) === -1 })
     applySnapshot()
     refresh()
   }
 
-  function urlForView(view) {
-    if (view !== "inbox") return root.apiBase + "/tasks?limit=200"
-    return root.apiBase + "/tasks/filter?query=" + encodeURIComponent("#Inbox & no due date") + "&lang=fr&limit=200"
-  }
-
   function countForView(view) {
     return view === "today" ? root.todayTaskCount
-      : view === "tomorrow" ? root.tomorrowTaskCount
-      : view === "inbox" ? root.inboxTaskCount : root.allTaskCount
+      : view === "upcoming" ? root.upcomingTaskCount
+      : view === "undated" ? root.undatedTaskCount : root.allTaskCount
   }
 
   function applySnapshot() {
     var selected = selectedTask()
     var views = {
-      today: Model.taskTreeForView(root.allTasks, "today", root.inboxTasks),
-      tomorrow: Model.taskTreeForView(root.allTasks, "tomorrow", root.inboxTasks),
-      inbox: Model.taskTreeForView(root.allTasks, "inbox", root.inboxTasks),
-      all: Model.taskTreeForView(root.allTasks, "all", root.inboxTasks)
+      today: Model.taskTreeForView(root.allTasks, "today"),
+      upcoming: Model.taskTreeForView(root.allTasks, "upcoming"),
+      undated: Model.taskTreeForView(root.allTasks, "undated"),
+      all: Model.taskTreeForView(root.allTasks, "all")
     }
     root.tasks = views[root.quickView] || views.all
     root.selectedTaskIndex = selected ? root.tasks.findIndex(function(t) { return t.id === selected.id }) : -1
     root.todayTaskCount = views.today.length
-    root.tomorrowTaskCount = views.tomorrow.length
-    root.inboxTaskCount = views.inbox.length
+    root.upcomingTaskCount = views.upcoming.length
+    root.undatedTaskCount = views.undated.length
     root.allTaskCount = views.all.length
     refreshBarCount()
   }
@@ -594,15 +587,13 @@ Panel {
     root.loading = true
     listProc.generation = root.accountGeneration
     listProc.revision = root.dataRevision
-    listProc.view = "all"
     listProc.accumulated = []
-    listProc.allResults = []
     listProc.cursors = []
     fetchPage("")
   }
 
   function fetchPage(cursor) {
-    var url = urlForView(listProc.view)
+    var url = root.apiBase + "/tasks?limit=200"
     if (cursor !== "") url += "&cursor=" + encodeURIComponent(cursor)
     runAuthedCurl(listProc, ["curl", "-q", "-fsS", "--max-time", "10", "-K", "-", url])
   }
@@ -623,16 +614,7 @@ Panel {
         fetchPage(page.next_cursor)
         return
       }
-      if (listProc.view === "all") {
-        listProc.allResults = listProc.accumulated
-        listProc.accumulated = []
-        listProc.cursors = []
-        listProc.view = "inbox"
-        fetchPage("")
-        return
-      }
-      root.allTasks = listProc.allResults
-      root.inboxTasks = listProc.accumulated
+      root.allTasks = listProc.accumulated
       applySnapshot()
       root.lastSyncedAt = Date.now()
     } catch (e) {
@@ -670,9 +652,7 @@ Panel {
     id: listProc
     property int generation: -1
     property int revision: -1
-    property string view: "all"
     property var accumulated: []
-    property var allResults: []
     property var cursors: []
     stdout: StdioCollector { id: listOut; waitForEnd: true }
     stderr: StdioCollector { id: listErr; waitForEnd: true }
@@ -759,13 +739,22 @@ Panel {
     // bluetooth panel's DeviceRow/rowIndex convention).
     required property int rowIndex
     property bool hasCursor: false
+    // Align the visible circle, accounting for its inset within the hit target.
+    readonly property real childIndent: checkBtn.width + Style.spacing.sm
+      - (checkBtn.width - checkboxMetrics.advanceWidth) / 2
+    TextMetrics {
+      id: checkboxMetrics
+      text: "○"
+      font.family: checkBtn.fontFamily
+      font.pixelSize: checkBtn.fontSize
+    }
 
     readonly property bool overdue: Model.taskIsOverdue(task)
     readonly property string dueLabel: {
       // Subtasks can have a different due date from their parent's section.
       if (task && task.subtaskDepth > 0) return Model.taskDueLabel(task)
-      // The section already names today/tomorrow; retain any exact due time.
-      if (Model.taskDateGroup(task) === "Aujourd’hui" || root.quickView === "tomorrow")
+      // Today is already named by the section; future tasks keep their dates.
+      if (Model.taskDateGroup(task) === "Aujourd’hui")
         return Model.dueTimeLabel(task).trim()
       return Model.taskDueLabel(task)
     }
@@ -986,15 +975,14 @@ Panel {
         }
         if (t === "d" || t === "D") {
           if (ctrl) root.setSelectedTaskDue("tomorrow")
-          else root.selectQuickView("tomorrow")
+          else root.selectQuickView("upcoming")
           return
         }
         if (t === "i" || t === "I") {
           if (ctrl) root.setSelectedTaskDue(null)
-          else root.selectQuickView("inbox")
+          else root.selectQuickView("undated")
           return
         }
-        if (t === "t" || t === "T") root.selectQuickView("all")
       }
 
       Flickable {
@@ -1194,11 +1182,11 @@ Panel {
               }
 
               NavButton {
-                id: barCountInboxButton
+                id: barCountUndatedButton
                 width: barCountRow.cellWidth
-                text: "Inbox"
-                selected: root.barCountMode === "inbox"
-                onClicked: root.setBarCountMode("inbox")
+                text: "Sans date"
+                selected: root.barCountMode === "undated"
+                onClicked: root.setBarCountMode("undated")
               }
 
               NavButton {
@@ -1409,20 +1397,26 @@ Panel {
               }
             }
 
-            // Equal-width view buttons keep the tabs aligned with the
-            // full-width quick-add field above. Tab/Shift+Tab still cycles
-            // views through PanelKeyCatcher rather than Qt focus traversal.
-            Row {
+            // Wrap the tabs at narrow widths so Prochainement is never clipped.
+            Grid {
               id: quickViewRow
               width: parent.width
               visible: root.apiToken !== ""
               height: visible ? implicitHeight : 0
               clip: true
               spacing: Style.spacing.xs
-              readonly property real cellWidth: (width - spacing * 3) / 4
+              readonly property real naturalWidth: todayViewButton.implicitWidth
+                + upcomingViewButton.implicitWidth + undatedViewButton.implicitWidth
+              readonly property real widest: Math.max(todayViewButton.implicitWidth,
+                upcomingViewButton.implicitWidth, undatedViewButton.implicitWidth)
+              columns: width >= naturalWidth + spacing * 2 ? 3
+                : width >= widest * 2 + spacing ? 2 : 1
+              readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
+              readonly property real extraWidth: (width - naturalWidth - spacing * 2) / 3
 
               Button {
-                width: quickViewRow.cellWidth
+                id: todayViewButton
+                width: quickViewRow.columns === 3 ? implicitWidth + quickViewRow.extraWidth : quickViewRow.cellWidth
                 text: "Auj (" + root.countForView("today") + ")"
                 selected: root.quickView === "today"
                 bordered: true
@@ -1431,32 +1425,28 @@ Panel {
                 onClicked: root.selectQuickView("today")
               }
               Button {
-                width: quickViewRow.cellWidth
-                text: "Demain (" + root.countForView("tomorrow") + ")"
-                selected: root.quickView === "tomorrow"
+                id: upcomingViewButton
+                width: quickViewRow.columns === 3 ? implicitWidth + quickViewRow.extraWidth : quickViewRow.cellWidth
+                tooltipText: "De demain aux six prochains jours (d)"
+                text: "Prochainement (" + root.countForView("upcoming") + ")"
+                selected: root.quickView === "upcoming"
                 bordered: true
                 focusable: false
                 fontSize: Style.font.caption
-                onClicked: root.selectQuickView("tomorrow")
+                onClicked: root.selectQuickView("upcoming")
               }
               Button {
-                width: quickViewRow.cellWidth
-                text: "Inbox (" + root.countForView("inbox") + ")"
-                selected: root.quickView === "inbox"
+                id: undatedViewButton
+                width: quickViewRow.columns === 3 ? implicitWidth + quickViewRow.extraWidth : quickViewRow.cellWidth
+                tooltipText: "Tâches sans date dans tous les projets (i)"
+                text: "Sans date (" + root.countForView("undated") + ")"
+                selected: root.quickView === "undated"
                 bordered: true
                 focusable: false
                 fontSize: Style.font.caption
-                onClicked: root.selectQuickView("inbox")
+                onClicked: root.selectQuickView("undated")
               }
-              Button {
-                width: quickViewRow.cellWidth
-                text: "Tout (" + root.countForView("all") + ")"
-                selected: root.quickView === "all"
-                bordered: true
-                focusable: false
-                fontSize: Style.font.caption
-                onClicked: root.selectQuickView("all")
-              }
+
             }
 
             PanelSeparator {
@@ -1500,7 +1490,7 @@ Panel {
                   Text {
                     width: parent.width
                     visible: delegateItem.startsGroup
-                    text: root.quickView === "tomorrow" ? "Demain" : delegateItem.dateGroup
+                    text: delegateItem.dateGroup
                     textFormat: Text.PlainText
                     topPadding: delegateItem.index === 0 ? Style.spacing.xs : Style.spacing.md
                     bottomPadding: Style.spacing.xs
@@ -1512,9 +1502,9 @@ Panel {
 
                   TaskRow {
                     id: delegateRow
-                    // Cap indentation so deeply nested titles remain readable.
-                    x: Math.min(delegateItem.modelData.subtaskDepth || 0, 2) * Style.space(12)
-                    width: parent.width - x
+                    // Each child checkbox starts at its parent's text column.
+                    x: (delegateItem.modelData.subtaskDepth || 0) * delegateRow.childIndent
+                    width: Math.max(0, parent.width - x)
                     task: delegateItem.modelData
                     rowIndex: delegateItem.index
                     hasCursor: root.taskCursorActive && delegateItem.index === root.selectedTaskIndex
@@ -1629,8 +1619,8 @@ Panel {
                     color: root.contentForeground
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.bodySmall
-                    text: "Tab / Maj+Tab — parcourir Auj → Demain → Inbox → Tout\n"
-                      + "a / d / i / t — accéder à Auj / Demain / Inbox / Tout\n"
+                    text: "Tab / Maj+Tab — parcourir Auj → Prochainement → Sans date\n"
+                      + "a / d / i — accéder à Auj / Prochainement / Sans date\n"
                       + "Ctrl+a / Ctrl+d / Ctrl+i (tâche sélectionnée) — échéance aujourd’hui / demain / aucune\n"
                       + "p — afficher/masquer les réglages\n"
                       + "↑/↓ ou k/j — déplacer la sélection\n"

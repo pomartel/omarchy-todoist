@@ -162,14 +162,12 @@ function sortedTasks(tasks) {
 
 // Select root tasks for the view, then emit each entire subtree in preorder.
 // Descendants inherit placement, not actual due dates or mutation targets.
-function taskTreeForView(allTasks, view, inboxTasks) {
+function taskTreeForView(allTasks, view) {
   var byId = Object.create(null)
   var children = Object.create(null)
-  var inboxIds = Object.create(null)
   var seen = Object.create(null)
   var output = []
   var ordered = sortedTasks(allTasks)
-  ;(inboxTasks || []).forEach(function(task) { inboxIds[task.id] = true })
   ordered.forEach(function(task) { byId[task.id] = task })
   ordered.forEach(function(task) {
     var parentId = task.parent_id || task.parent || ""
@@ -178,7 +176,7 @@ function taskTreeForView(allTasks, view, inboxTasks) {
   })
 
   function appendTree(root) {
-    var include = view === "inbox" ? !!inboxIds[root.id] : tasksForView([root], view).length > 0
+    var include = tasksForView([root], view).length > 0
     var group = taskDateGroup(root)
     var stack = [{ task: root, depth: 0 }]
     while (stack.length > 0) {
@@ -236,17 +234,18 @@ function taskIdsWithDescendants(tasks, ids) {
 // Todoist's natural-language filter uses the account/API timezone, which can
 // disagree with the machine timezone used by the panel. Filter these two
 // quick views locally so a task stays in the same day as its displayed time.
-function tasksForView(tasks, view) {
-  if (view !== "today" && view !== "tomorrow") return (tasks || []).slice()
-  var today = todayIsoDate()
-  var tomorrow = localDateFromIso(today)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  var tomorrowIso = tomorrow.getFullYear() + "-" + pad2(tomorrow.getMonth() + 1)
-    + "-" + pad2(tomorrow.getDate())
+function tasksForView(tasks, view, referenceDate) {
+  if (view === "undated") return (tasks || []).filter(function(task) { return localDueDateIso(task) === "" })
+  if (view !== "today" && view !== "upcoming") return (tasks || []).slice()
+  var today = referenceDate || todayIsoDate()
+  // Calendar arithmetic handles month/year boundaries and daylight saving.
+  var end = localDateFromIso(today)
+  end.setDate(end.getDate() + 6)
+  var endIso = end.getFullYear() + "-" + pad2(end.getMonth() + 1) + "-" + pad2(end.getDate())
   return (tasks || []).filter(function(task) {
     var dueDate = localDueDateIso(task)
     if (dueDate === "") return false
-    return view === "today" ? dueDate <= today : dueDate === tomorrowIso
+    return view === "today" ? dueDate <= today : dueDate > today && dueDate <= endIso
   })
 }
 

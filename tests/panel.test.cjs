@@ -9,7 +9,7 @@ function harness() {
   const timer = { restart() { this.running = true; }, stop() { this.running = false; } };
   const root = {
     apiToken: 'test-only', apiBase: 'https://example.invalid', accountGeneration: 0, dataRevision: 0,
-    allTasks: [], inboxTasks: [], tasks: [], quickView: 'today', selectedTaskIndex: -1,
+    allTasks: [], tasks: [], quickView: 'today', selectedTaskIndex: -1,
     editingTaskId: '', editDraft: '', pendingTaskIds: [], completingTaskIds: [], pendingRemovalIds: [],
     actionQueue: [], actionBusy: false, loading: false, refreshPending: false, quickAddSubmitting: false,
     quickAddText: '', fetchError: '', actionError: '', settingsError: '', lastSyncedAt: 0,
@@ -38,20 +38,17 @@ function harness() {
 }
 const task = (id, due) => ({id, content: id, due: due ? {date: due} : null});
 
-test('all pages and Inbox are published together, with local counts', () => {
+test('one paginated snapshot supplies all views and counts', () => {
   const {root:r,c,calls,page} = harness();
   const today = c.Model.todayIsoDate();
   r.refresh(); page([task('a', today)], 'opaque cursor');
   assert.equal(r.tasks.length, 0);
   assert.match(calls.at(-1).command.at(-1), /cursor=opaque%20cursor/);
   page([task('b')]);
-  assert.equal(r.tasks.length, 0);
-  assert.match(calls.at(-1).command.at(-1), /tasks\/filter/);
-  page([task('b')]);
   assert.equal(r.tasks[0].id, 'a');
   assert.equal(r.todayTaskCount, 1); assert.equal(r.allTaskCount, 2);
-  assert.equal(r.inboxTaskCount, 1); assert.equal(r.barCountValue, 2);
-  assert.equal(calls.length, 3);
+  assert.equal(r.undatedTaskCount, 1); assert.equal(r.barCountValue, 2);
+  assert.equal(calls.length, 2);
 });
 
 test('failed later page retains prior snapshot and reports failure', () => {
@@ -67,8 +64,8 @@ test('repeated cursors fail without publishing partial results', () => {
 });
 
 test('changing view during fetch derives the new view from the complete snapshot', () => {
-  const {root:r,c,page} = harness(); r.refresh(); r.quickView='inbox';
-  page([task('a', c.Model.todayIsoDate()),task('b')]); page([task('b')]);
+  const {root:r,c,page} = harness(); r.refresh(); r.quickView='undated';
+  page([task('a', c.Model.todayIsoDate()),task('b')]);
   assert.equal(r.tasks.length,1); assert.equal(r.tasks[0].id,'b');
 });
 
@@ -102,7 +99,7 @@ test('failed mutation error survives refresh and successful reconciliation', () 
   const {root:r,complete,page} = harness(); r.requestComplete('a'); complete(22);
   const error = r.actionError; assert.notEqual(error,'');
   assert.equal(r.completingTaskIds.length,0); assert.equal(r.pendingRemovalIds.length,0);
-  page([]); page([]); assert.equal(r.actionError,error);
+  page([]); assert.equal(r.actionError,error);
 });
 
 test('disconnect ignores old responses and drops queued actions and counts', () => {
@@ -124,7 +121,7 @@ test('mutation invalidates an in-flight snapshot and refresh waits for its queue
 test('new account rejects old fetch and starts a fresh one', () => {
   const {root:r,page,calls} = harness(); r.refresh(); r.resetAccount(); r.apiToken='new-dummy'; r.refresh();
   page([task('old')]); assert.equal(r.tasks.length,0); assert.equal(calls.length,2);
-  page([task('new')]); page([]); assert.equal(r.allTasks[0].id,'new');
+  page([task('new')]); assert.equal(r.allTasks[0].id,'new');
 });
 
 test('quick add preserves a newer draft while request is pending', () => {
@@ -133,10 +130,10 @@ test('quick add preserves a newer draft while request is pending', () => {
 });
 
 test('settings coalesce while a write is pending', () => {
-  const {root:r,c,calls} = harness(); r.persistSettings(); r.quickView='inbox'; r.persistSettings();
-  assert.equal(calls.length,1); assert.equal(JSON.parse(r.pendingSettings).quickView,'inbox');
+  const {root:r,c,calls} = harness(); r.persistSettings(); r.quickView='undated'; r.persistSettings();
+  assert.equal(calls.length,1); assert.equal(JSON.parse(r.pendingSettings).quickView,'undated');
   c.settingsWriteProc.running=false; r.writePendingSettings();
-  assert.equal(calls.length,2); assert.equal(JSON.parse(c.settingsWriteProc.input).quickView,'inbox');
+  assert.equal(calls.length,2); assert.equal(JSON.parse(c.settingsWriteProc.input).quickView,'undated');
 });
 
 test('rapid edits to different tasks both reach their own IDs', () => {
@@ -154,7 +151,7 @@ test('an old account completion cannot remove a task from the new account', () =
 });
 
 test('French times and no-date requests do not receive an extra default date', () => {
-  const {root:r} = harness(); r.quickView='tomorrow';
+  const {root:r} = harness(); r.quickView='upcoming';
   for (const text of ['appel à 17 h','réunion 17:30','acheter du pain sans date'])
     assert.equal(r.quickAddTextForView(text), text);
   assert.equal(r.quickAddTextForView('acheter du pain'), 'acheter du pain demain');
@@ -216,28 +213,28 @@ test('undated subtasks follow the main task in Today and remain individually edi
   const {root:r,c,page,calls}=harness();
   const parent=task('parent',c.Model.todayIsoDate());
   const child={...task('child'),parent_id:'parent'};
-  r.refresh(); page([child,parent]); page([child]);
+  r.refresh(); page([child,parent]);
   assert.deepEqual(Array.from(r.tasks,t=>t.id),['parent','child']);
   assert.equal(r.tasks[1].parentTitle,'parent'); assert.equal(r.todayTaskCount,2);
   assert.equal(r.allTaskCount,2); assert.equal(r.barCountValue,2);
-  assert.equal(r.inboxTaskCount,0);
+  assert.equal(r.undatedTaskCount,0);
   r.selectedTaskIndex=1; r.startEditSelectedTask(); r.editDraft='Edited child'; r.commitEditTask();
   assert.match(calls.at(-1).command.at(-1), /\/tasks\/child$/);
 });
 
-test('Inbox and Tomorrow include the whole subtree when the root matches',()=>{
+test('Sans date and Upcoming include the whole subtree when the root matches',()=>{
   const {root:r,c,page}=harness();
   const tomorrow=c.Model.localDateFromIso(c.Model.todayIsoDate()); tomorrow.setDate(tomorrow.getDate()+1);
   const date=tomorrow.getFullYear()+'-'+c.Model.pad2(tomorrow.getMonth()+1)+'-'+c.Model.pad2(tomorrow.getDate());
   const parent=task('parent',date);
   const child={...task('child'),parent_id:'parent'};
-  const inbox=task('inbox'); const nested={...task('nested',date),parent_id:'inbox'};
-  r.refresh(); page([parent,child,inbox,nested]); page([inbox]);
-  assert.equal(r.tomorrowTaskCount,2); assert.equal(r.inboxTaskCount,2);
-  r.quickView='tomorrow'; r.applySnapshot();
+  const inbox=task('undated'); const nested={...task('nested',date),parent_id:'undated'};
+  r.refresh(); page([parent,child,inbox,nested]);
+  assert.equal(r.upcomingTaskCount,2); assert.equal(r.undatedTaskCount,2);
+  r.quickView='upcoming'; r.applySnapshot();
   assert.deepEqual(Array.from(r.tasks,t=>t.id),['parent','child']);
-  r.quickView='inbox'; r.applySnapshot();
-  assert.deepEqual(Array.from(r.tasks,t=>t.id),['inbox','nested']);
+  r.quickView='undated'; r.applySnapshot();
+  assert.deepEqual(Array.from(r.tasks,t=>t.id),['undated','nested']);
   assert.equal(r.tasks[1].dateGroup,'Sans date');
 });
 
@@ -247,4 +244,27 @@ test('completing a main task removes its entire cached subtree together',()=>{
   r.requestComplete('parent'); complete(); r.flushCompletedRemovals();
   assert.deepEqual(Array.from(r.tasks,t=>t.id),['other']);
   assert.equal(r.allTaskCount,1);
+});
+
+test('saved Tomorrow selection migrates to Upcoming',()=>{
+  const {root:r}=harness(); r.settingsLoaded=false; r.apiToken='';
+  r.loadSettingsFromText('{"quickView":"tomorrow"}');
+  assert.equal(r.quickView,'upcoming');
+});
+
+test('d opens Upcoming while Ctrl+d continues to set tomorrow',()=>{
+  const {root:r,c,press}=shortcutHarness();
+  r.selectQuickView=view=>{ r.quickView=view; };
+  press('D','d'); assert.equal(r.quickView,'upcoming');
+  let due=''; r.setSelectedTaskDue=value=>{due=value;};
+  c.press({key:'D',text:'d',modifiers:c.Qt.ControlModifier,accepted:false});
+  assert.equal(due,'tomorrow');
+});
+
+test('saved Inbox and All selections migrate to available views',()=>{
+  for (const [oldView,newView] of [['inbox','undated'],['all','today']]) {
+    const {root:r}=harness(); r.settingsLoaded=false; r.apiToken='';
+    r.loadSettingsFromText(JSON.stringify({quickView:oldView,barCountMode:'inbox'}));
+    assert.equal(r.quickView,newView); assert.equal(r.barCountMode,'undated');
+  }
 });

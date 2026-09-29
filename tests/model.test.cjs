@@ -70,7 +70,7 @@ test('children of excluded roots never become standalone matches',()=>{
   const parent={id:'p',content:'Parent',due:{date:'2099-01-01'}};
   const child={id:'c',content:'Child',parent_id:'p',due:{date:m.todayIsoDate()}};
   assert.equal(m.taskTreeForView([parent,child],'today',[]).length,0);
-  assert.equal(m.taskTreeForView([parent,child],'inbox',[child]).length,0);
+  assert.equal(m.taskTreeForView([parent,child],'undated').length,0);
 });
 
 test('missing parents and cyclic data remain visible exactly once',()=>{
@@ -84,4 +84,26 @@ test('missing parents and cyclic data remain visible exactly once',()=>{
 test('completed subtree removal includes nested descendants but not siblings',()=>{
   const tasks=[{id:'p'},{id:'c',parent_id:'p'},{id:'n',parent_id:'c'},{id:'other'}];
   assert.deepEqual(Array.from(m.taskIdsWithDescendants(tasks,['p'])).sort(),['c','n','p']);
+});
+
+test('Upcoming includes exactly the next six calendar days across year boundaries',()=>{
+  const dates=['2026-12-28','2026-12-29','2026-12-30','2026-12-31','2027-01-01','2027-01-02','2027-01-03','2027-01-04','2027-01-05'];
+  const tasks=dates.map(date=>({id:date,due:{date}})).concat([{id:'undated'}]);
+  const result=m.tasksForView(tasks,'upcoming','2026-12-29');
+  assert.deepEqual(Array.from(result,t=>t.id),dates.slice(2,8));
+});
+
+test('Upcoming uses calendar days across the daylight-saving boundary',()=>{
+  const tasks=['2026-03-08','2026-03-13','2026-03-14'].map(date=>({id:date,due:{date}}));
+  assert.deepEqual(Array.from(m.tasksForView(tasks,'upcoming','2026-03-07'),t=>t.id),['2026-03-08','2026-03-13']);
+});
+
+test('Sans date includes undated roots across all projects with their descendants',()=>{
+  const tasks=[
+    {id:'inbox',content:'A',project_id:'inbox'},
+    {id:'work',content:'B',project_id:'work'},
+    {id:'personal',content:'C',project_id:'personal',due:{date:'2099-01-01'}},
+    {id:'child',content:'Child',parent_id:'work',due:{date:'2099-01-01'}}
+  ];
+  assert.deepEqual(Array.from(m.taskTreeForView(tasks,'undated'),t=>t.id),['inbox','work','child']);
 });
