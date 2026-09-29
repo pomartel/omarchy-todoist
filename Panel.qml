@@ -72,11 +72,6 @@ Panel {
   property string editingTaskId: ""
   property string editDraft: ""
 
-  // Enter fires both returnRequested (open in browser) and activateRequested
-  // (complete) back-to-back — this suppresses the completion half of that so
-  // Enter only opens the browser; Space still completes on its own.
-  property bool suppressNextActivate: false
-
   property bool helpOpen: false
 
   // Fixed popup size, user-adjustable from Settings → Advanced. Deliberately
@@ -366,9 +361,8 @@ Panel {
     root.selectQuickView(root.quickViewOrder[next])
   }
 
-  // ---- Keyboard cursor over the task list (arrow keys / j·k, Enter/Space
-  //      to complete). Independent of the Tab-driven quick-view cycling and
-  //      of the keyboard-shortcut recorder above.
+  // ---- Keyboard cursor: arrows/j/k select, Enter edits, Space completes.
+  //      Tab cycles quick views independently of the selected task.
   function moveTaskCursor(delta) {
     if (root.tasks.length === 0) return
     root.taskCursorActive = true
@@ -393,14 +387,15 @@ Panel {
     if (task) root.requestComplete(task.id)
   }
 
-  // ---- Open the selected task on the Todoist website (Enter). Closes the
+  // ---- Open the selected task on the Todoist website (o). Closes the
   //      panel afterward — attention is going to the browser, not staying
   //      here, matching how launching anything else from a panel dismisses it.
   function openSelectedTaskInBrowser() {
     if (root.selectedTaskIndex < 0 || root.selectedTaskIndex >= root.tasks.length) return
     var task = root.tasks[root.selectedTaskIndex]
     if (!task || !task.id) return
-    openUrlProc.command = ["omarchy-launch-or-focus-webapp", "brave-app.todoist", "https://app.todoist.com/app/task/" + encodeURIComponent(task.id)]
+    // Always launch the task URL: focusing an existing webapp does not navigate it.
+    openUrlProc.command = ["omarchy-launch-webapp", "https://app.todoist.com/app/task/" + encodeURIComponent(task.id)]
     openUrlProc.running = true
     root.close()
   }
@@ -936,25 +931,16 @@ Panel {
         if (root.settingsView) root.moveSettingsFocus(dy)
         else root.moveTaskCursor(dy)
       }
-      // Enter fires returnRequested then activateRequested, back to back,
-      // for the same keypress — returnRequested opens the task in the
-      // browser and flags suppressNextActivate so the activateRequested
-      // that immediately follows doesn't also complete it. Space fires only
-      // activateRequested, so it still completes on its own.
+      // Enter edits tasks; in Settings it activates the focused control.
+      // Text fields keep their own Enter-to-submit behavior via blocked above.
       onReturnRequested: {
-        if (root.settingsView) return
-        root.suppressNextActivate = true
-        root.openSelectedTaskInBrowser()
+        if (root.settingsView) root.activateFocusedSettingsControl()
+        else root.startEditSelectedTask()
       }
-      // PanelKeyCatcher intercepts Enter/Space before a focused Button ever
-      // sees them (Keys.priority: BeforeItem consumes the event first), so
-      // Settings has to explicitly re-trigger whichever control has focus.
-      // TextFields aren't handled here — they're covered by the `blocked`
-      // guard above instead, which lets Enter reach their own onAccepted.
+      // Only Space requests activation, so Enter can never complete a task.
       onActivateRequested: {
-        if (root.suppressNextActivate) { root.suppressNextActivate = false; return }
-        if (root.settingsView) { root.activateFocusedSettingsControl(); return }
-        root.activateSelectedTask()
+        if (root.settingsView) root.activateFocusedSettingsControl()
+        else root.activateSelectedTask()
       }
       // "x" is this shell's established delete shortcut (see
       // Ui/PanelKeyCatcher.qml) — the physical Delete key has no printable
@@ -972,6 +958,7 @@ Panel {
         }
         if (t === "q" || t === "Q") { quickAddField.forceActiveFocus(); return }
         if (t === "e" || t === "E") { root.startEditSelectedTask(); return }
+        if (t === "o" || t === "O") { root.openSelectedTaskInBrowser(); return }
         var ctrl = (modifiers & Qt.ControlModifier) !== 0
         if (t === "a" || t === "A") {
           if (ctrl) root.setSelectedTaskDue("today")
@@ -1605,9 +1592,9 @@ Panel {
                       + "Ctrl+a / Ctrl+d / Ctrl+i (tâche sélectionnée) — échéance aujourd’hui / demain / aucune\n"
                       + "p — afficher/masquer les réglages\n"
                       + "↑/↓ ou k/j — déplacer la sélection\n"
-                      + "Entrée — ouvrir la tâche dans Todoist\n"
+                      + "Entrée / e — modifier le titre\n"
                       + "Espace — marquer comme terminée\n"
-                      + "e — modifier le titre\n"
+                      + "o — ouvrir la page de la tâche dans Todoist\n"
                       + "x — supprimer la tâche\n"
                       + "q — accéder à Ajouter une tâche\n"
                       + "r — actualiser\n"

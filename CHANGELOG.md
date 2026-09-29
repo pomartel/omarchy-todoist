@@ -2,6 +2,12 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.15.1 — Task shortcuts
+
+- Enter and `e` edit the selected task; Enter in the editor saves it.
+- `o` opens the selected task's Todoist page. Always launch its URL instead of only focusing an existing Todoist window.
+- Space still completes tasks; Enter no longer emits the completion signal.
+
 ## v1.15 — Reliable task synchronization
 
 - Fetch every page and derive views and counts from a shared snapshot.

@@ -137,9 +137,9 @@ The whole panel is operable without a mouse:
 | `Ctrl` + `a` / `d` / `i` | For the selected task, set its due date to today, tomorrow, or none |
 | `p` | Toggle Settings open/closed |
 | `↑`/`↓` or `k`/`j` | Move the selection up/down the task list |
-| `Enter` | Open the selected task on the Todoist website, then close the panel |
+| `Enter` or `e` | Edit the selected task's title in place; Enter saves while editing |
 | `Space` | Complete the selected task |
-| `e` | Edit the selected task's title in place |
+| `o` | Open the selected task's page in Todoist, then close the panel |
 | `x` | Delete the selected task immediately |
 | `q` | Jump into the Add-a-task box |
 | `r` | Refresh |
@@ -163,7 +163,8 @@ command arguments. Curl's default configuration file is disabled.
 Requests go to `https://api.todoist.com/api/v1/` over HTTPS.
 
 Opening Todoist uses `xdg-open` from Settings or
-`omarchy-launch-or-focus-webapp` for a selected task. Ctrl-clicking a task
+`omarchy-launch-webapp` for a selected task. The task URL is always launched,
+even when Todoist is already open; this may create another webapp window. Ctrl-clicking a task
 link opens its HTTP(S) URL with the desktop URL handler. Nothing runs with
 elevated privileges, and the plugin does not edit keyboard bindings.
 
@@ -193,7 +194,7 @@ Uses the [Todoist API v1](https://developer.todoist.com/api/v1/):
 Inbox, both with cursor pagination. Mutations are serialized: `POST
 /tasks/quick` (Quick Add, natural-language parsing) for new tasks, `POST
 /tasks/{id}` to edit a task's title or due date, `POST /tasks/{id}/close` to complete,
-`DELETE /tasks/{id}` to delete. `Enter` opens
+`DELETE /tasks/{id}` to delete. `o` opens
 `https://app.todoist.com/app/task/{id}` in your Todoist webapp. The older
 REST API v2 was retired by Todoist in February 2026, so this plugin only
 supports the current API.

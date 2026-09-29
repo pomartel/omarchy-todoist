@@ -159,3 +159,55 @@ test('French times and no-date requests do not receive an extra default date', (
     assert.equal(r.quickAddTextForView(text), text);
   assert.equal(r.quickAddTextForView('acheter du pain'), 'acheter du pain demain');
 });
+
+// Exercise the real key catcher and panel signal handlers together. This catches
+// accidental double dispatch (Enter previously also emitted task completion).
+function shortcutHarness() {
+  const h = harness(), {root:r,c} = h;
+  r.settingsView=false;
+  r.controller={hide() { r.closed=true; }};
+  c.openUrlProc={running:false,command:[]};
+  c.blocked=false;
+  for (const key of ['Escape','Tab','Backtab','Down','Up','Right','Left','Return','Enter','Space','A','D','I'])
+    c.Qt['Key_'+key]=key;
+  c.Qt.ControlModifier=1; c.Qt.ShiftModifier=2;
+  for (const [signal, handler] of [['returnRequested','onReturnRequested'],['activateRequested','onActivateRequested']]) {
+    const match=source.match(new RegExp('      '+handler+': \\{([^]*?)\\n      }'));
+    c[signal]=()=>vm.runInContext(match[1],c);
+  }
+  const text=source.match(/      onTextKey: function\(t, modifiers\) \{([^]*?)\n      }/)[1];
+  c.textKey=(t,modifiers)=>{ c.t=t;c.modifiers=modifiers;vm.runInContext("(function() {"+text+"\n})()",c); };
+  const catcher=fs.readFileSync('TodoistPanelKeyCatcher.qml','utf8');
+  vm.runInContext('function press(event) {'+catcher.match(/Keys.onPressed: function\(event\) \{([^]*)\n  }\n}/)[1]+'\n}',c);
+  h.press=(key,text='')=>c.press({key,text,modifiers:0,accepted:false});
+  r.allTasks=[task('selected/id')]; r.tasks=r.allTasks; r.selectedTaskIndex=0;
+  return h;
+}
+
+test('Enter, keypad Enter and e edit without completing or opening a task', () => {
+  for (const [key,text] of [['Return',''],['Enter',''],['E','e']]) {
+    const {root:r,c,calls,press}=shortcutHarness(); press(key,text);
+    assert.equal(r.editingTaskId,'selected/id');
+    assert.equal(calls.length,0); assert.equal(c.openUrlProc.running,false);
+  }
+});
+
+test('o always launches the selected task URL instead of focusing a stale page', () => {
+  const {root:r,c,calls,press}=shortcutHarness(); press('O','o');
+  assert.deepEqual(Array.from(c.openUrlProc.command),[
+    'omarchy-launch-webapp','https://app.todoist.com/app/task/selected%2Fid']);
+  assert.equal(c.openUrlProc.running,true); assert.equal(r.closed,true);
+  assert.equal(calls.length,0); assert.equal(r.editingTaskId,'');
+});
+
+test('Space still completes and blocked fields do not handle task shortcuts', () => {
+  const {root:r,c,press}=shortcutHarness(); c.blocked=true; press('Return'); press('O','o');
+  assert.equal(r.editingTaskId,''); assert.equal(c.openUrlProc.running,false);
+  c.blocked=false; press('Space'); assert.equal(r.completingTaskIds[0],'selected/id');
+});
+
+test('Enter in settings activates its control without editing a task', () => {
+  const {root:r,press}=shortcutHarness(); r.settingsView=true;
+  let activated=0; r.activateFocusedSettingsControl=()=>activated++;
+  press('Return'); assert.equal(activated,1); assert.equal(r.editingTaskId,'');
+});
