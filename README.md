@@ -55,7 +55,7 @@ constraints, and a few things that didn't work the first time.
   built-in Wi-Fi/Bluetooth panels. Hover it for your current task count, or
   turn on **Settings → Bar Count** to show a live Today/Sans date/total count
   right on the icon.
-- Panel lists matching tasks, sorted by due date then priority, color-coded
+- Panel lists matching tasks, sorted by date group and manual order (then due date and priority), color-coded
   by Todoist priority (**p1 red, p2 yellow, p3 blue, p4 normal**). Tasks are grouped
   under **En retard**, **Aujourd’hui**, **À venir**, and **Sans date**, with
   empty groups omitted. Today rows omit a redundant date label but retain
@@ -72,6 +72,15 @@ constraints, and a few things that didn't work the first time.
   `next Monday`) all work exactly like typing into Todoist itself. A bare
   task with no date in it (`Buy milk`) defaults to today in Today and tomorrow in Bientôt; Sans date leaves it undated. Explicit `sans date` is preserved.
 - **Auj / Bientôt / Sans date** quick-view tabs above the list.
+- Drag task text to reorder within a group. Main tasks move with their subtasks;
+  subtasks reorder among siblings without changing parents. Manual order is saved
+  through Todoist's [day-order API](https://developer.todoist.com/api/v1/).
+- Drop on **Auj** to schedule today, **Bientôt** for tomorrow, or **Sans date** to
+  remove the due date. In Bientôt, drop on another day heading or a main task in
+  that section to schedule that day. A date drop updates only the dragged task;
+  subtasks still appear under their parent. Dragging near the list edges scrolls;
+  **Escape** or dropping outside a destination cancels. Failed saves show an error
+  and reload the server state.
 - Settings view (gear icon) to paste your API token and manage the above.
 - Refreshes immediately whenever you open the popup, and whenever you add,
   complete, edit, or delete a task — not just on a timer. Otherwise polls

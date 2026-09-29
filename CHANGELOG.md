@@ -2,6 +2,12 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.18.0 — Drag and drop
+
+- Reorder tasks and sibling subtasks by dragging, saving manual order to Todoist.
+- Drop on tabs to set today, tomorrow, or no due date; drop between Bientôt day sections to reschedule.
+- Keep parent trees together, show drop feedback, scroll at list edges, and allow Escape to cancel.
+
 ## v1.17.4 — Tab icons
 
 - Add theme-colored calendar and tray icons inspired by omatasks to the three view tabs.

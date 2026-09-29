@@ -170,7 +170,7 @@ function shortcutHarness() {
   c.Qt.ControlModifier=1; c.Qt.ShiftModifier=2;
   for (const [signal, handler] of [['returnRequested','onReturnRequested'],['activateRequested','onActivateRequested']]) {
     const match=source.match(new RegExp('      '+handler+': \\{([^]*?)\\n      }'));
-    c[signal]=()=>vm.runInContext(match[1],c);
+    c[signal]=()=>vm.runInContext("(function() {"+match[1]+"\n})()",c);
   }
   const text=source.match(/      onTextKey: function\(t, modifiers\) \{([^]*?)\n      }/)[1];
   c.textKey=(t,modifiers)=>{ c.t=t;c.modifiers=modifiers;vm.runInContext("(function() {"+text+"\n})()",c); };
@@ -267,4 +267,35 @@ test('saved Inbox and All selections migrate to available views',()=>{
     r.loadSettingsFromText(JSON.stringify({quickView:oldView,barCountMode:'inbox'}));
     assert.equal(r.quickView,newView); assert.equal(r.barCountMode,'undated');
   }
+});
+
+test('cross-day reorder waits for the date request before syncing order', () => {
+  const {root:r,c,calls}=harness();
+  const payload={datePayload:{due_date:'2026-10-01'},commands:[{type:'item_update_day_orders',uuid:'u',args:{ids_to_orders:{a:0,b:1}}}]};
+  r.enqueueAction('reorder','a',payload);
+  assert.match(calls[0].command.at(-1),/\/tasks\/a$/);
+  assert.deepEqual(JSON.parse(calls[0].command.at(-2)),payload.datePayload);
+  const action=c.actionProc.action;
+  r.finishAction(action,0,'','{}');
+  assert.match(calls[1].command.at(-1),/\/sync$/);
+  assert.equal(r.actionBusy,true);
+  r.finishAction(action,0,'','{"sync_status":{"u":"ok"}}');
+  assert.equal(r.actionBusy,false);
+  assert.equal(r.actionError,'');
+  assert.equal(r.pendingTaskIds.length,0);
+});
+
+test('failed date request never submits the subsequent reorder',()=>{
+  const {root:r,c,calls}=harness();
+  r.enqueueAction('reorder','a',{datePayload:{due_date:'2026-10-01'},commands:[{uuid:'u'}]});
+  r.finishAction(c.actionProc.action,22,'HTTP 500','');
+  assert.equal(calls.some(call=>call.command.at(-1).endsWith('/sync')),false);
+  assert.notEqual(r.actionError,'');
+});
+
+test('sync errors in HTTP 200 responses are reported and refresh the snapshot',()=>{
+  const {root:r,c}=harness();
+  r.enqueueAction('reorder','a',{datePayload:null,commands:[{uuid:'u'}]});
+  r.finishAction(c.actionProc.action,0,'','{"sync_status":{"u":{"error":"invalid"}}}');
+  assert.notEqual(r.actionError,'');assert.equal(r.pendingTaskIds.length,0);assert.equal(r.loading,true);
 });

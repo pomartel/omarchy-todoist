@@ -136,11 +136,13 @@ function taskDateGroup(task, today) {
   return "À venir"
 }
 
-// Overdue/due-soonest first, undated tasks last; priority breaks ties within
-// the same date, then content for a stable order.
+// Keep date groups together, then honor manual day order within each group.
+// Unordered tasks fall back to due date, priority, then content.
 function sortedTasks(tasks) {
   var list = (tasks || []).slice()
   list.sort(function(a, b) {
+    var manual = compareDayOrder(a, b)
+    if (taskDateGroup(a) === taskDateGroup(b) && taskDateGroup(a) !== "À venir" && manual !== 0) return manual
     var aDue = localDueDateIso(a)
     var bDue = localDueDateIso(b)
     if (aDue !== bDue) {
@@ -148,6 +150,8 @@ function sortedTasks(tasks) {
       if (bDue === "") return -1
       return aDue < bDue ? -1 : 1
     }
+
+    if (manual !== 0) return manual
 
     var aPriority = a && typeof a.priority === "number" ? a.priority : 1
     var bPriority = b && typeof b.priority === "number" ? b.priority : 1
@@ -174,6 +178,9 @@ function taskTreeForView(allTasks, view) {
     if (!children[parentId]) children[parentId] = []
     children[parentId].push(task)
   })
+  Object.keys(children).forEach(function(id) {
+    if (id && byId[id]) children[id].sort(compareDayOrder)
+  })
 
   function appendTree(root) {
     var include = tasksForView([root], view).length > 0
@@ -191,6 +198,7 @@ function taskTreeForView(allTasks, view) {
         var parent = byId[task.parent_id || task.parent || ""]
         row.parentTitle = parent ? parent.content : ""
         row.subtaskDepth = entry.depth
+        row.groupDate = localDueDateIso(root)
         row.dateGroup = group
         output.push(row)
       }
@@ -308,4 +316,53 @@ function parseTaskPage(text) {
 function curlConfigEscape(value) {
   return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')
     .replace(/\r/g, "\\r").replace(/\n/g, "\\n")
+}
+
+// day_order is Todoist's manual view ordering, independent of project order.
+function compareDayOrder(a, b) {
+  var x = typeof a.day_order === "number" && a.day_order >= 0 ? a.day_order : 2147483647
+  var y = typeof b.day_order === "number" && b.day_order >= 0 ? b.day_order : 2147483647
+  return x - y
+}
+
+function dragDatePayload(date) {
+  return date === "" ? { due_string: "no date", due_lang: "en" } : { due_date: date }
+}
+
+function tomorrowIsoDate() {
+  var date = new Date()
+  date.setDate(date.getDate() + 1)
+  return date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate())
+}
+
+// Main tasks carry their subtree. Children can reorder only among siblings;
+// dropping on a date heading/tab changes just the dragged task's due date.
+function taskDropPlan(rows, sourceId, targetId, after, view) {
+  var source = rows.find(function(t) { return t.id === sourceId })
+  var target = rows.find(function(t) { return t.id === targetId })
+  if (!source || !target || source.id === target.id) return null
+  var parent = source.parent_id || source.parent || ""
+  if (parent !== (target.parent_id || target.parent || "")) return null
+  var differentDay = view === "upcoming" && source.groupDate !== target.groupDate
+  if (differentDay && parent) return null
+  if (view !== "upcoming" && source.dateGroup !== target.dateGroup) return null
+  function sameGroup(t) { return view === "upcoming" ? t.groupDate === target.groupDate : t.dateGroup === target.dateGroup }
+  var peers = rows.filter(function(t) {
+    return (t.parent_id || t.parent || "") === parent && sameGroup(t)
+      && t.id !== sourceId
+  }).map(function(t) { return t.id })
+  var index = peers.indexOf(targetId)
+  if (index < 0) return null
+  peers.splice(index + (after ? 1 : 0), 0, sourceId)
+  var before = rows.filter(function(t) {
+    return (t.parent_id || t.parent || "") === parent && sameGroup(t)
+  }).map(function(t) { return t.id })
+  if (!differentDay && peers.join("\n") === before.join("\n")) return null
+  var orders = {}
+  peers.forEach(function(id, i) { orders[id] = i })
+  return { orders: orders, datePayload: differentDay ? dragDatePayload(target.groupDate) : null }
+}
+
+function syncOrderSucceeded(text, uuid) {
+  try { return JSON.parse(text).sync_status[uuid] === "ok" } catch (e) { return false }
 }

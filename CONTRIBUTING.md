@@ -23,7 +23,7 @@ For anything beyond a small fix, open an issue first (or comment on an existing 
 
 ## Making a change
 
-1. Edit the files in your checkout. Run `node --test tests/*.test.cjs` and `python3 -m unittest discover -s tests -p "test_*.py"`. These use fixtures and temporary files, never your saved token or real Todoist tasks.
+1. Edit the files in your checkout. Run `node --test tests/*.test.cjs` and `python3 -m unittest discover -s tests -p "test_*.py"`. These use fixtures and temporary files, never your saved token or real Todoist tasks. On Omarchy, also run `./tests/check-drag` for synthetic offscreen pointer tests (requires QtTest and Quickshell). It tests the real panel with a substitute window and intercepted requests, and saves a synthetic drag preview to `/tmp/todoist-drag-reorder.png`.
 2. Parse each QML file with Qt 6 `qmlformat file.qml >/dev/null` (without `--inplace`), then run `omarchy plugin validate .` — this is the reliable structural check; `qmllint` doesn't work against this shell's runtime-only `qs.*` namespaces, so don't rely on it.
 3. Install (or symlink-free copy — `omarchy plugin validate` rejects symlinked plugin folders) your checkout to `~/.config/omarchy/plugins/omarchy-todoist/` for live testing.
 4. Clear the QML cache and restart the shell to pick up changes cleanly: `omarchy restart shell`.

@@ -36,6 +36,7 @@ Panel {
   // case) — without this, Tab/arrows in a freshly opened Settings would
   // have nothing focused to step from.
   onSettingsViewChanged: {
+    cancelTaskDrag()
     if (!root.opened) return
     Qt.callLater(function() {
       if (!root.opened) return
@@ -51,9 +52,16 @@ Panel {
     })
   }
 
+  property string dragTaskId: ""
+  property point dragPoint: Qt.point(0, 0)
+  property var dragDrop: null
+  readonly property bool dragging: dragTaskId !== ""
+  onOpenedChanged: if (!opened) cancelTaskDrag()
+
   property var tasks: []
   readonly property int taskCount: tasks.length
   onTasksChanged: {
+    cancelTaskDrag()
     if (root.selectedTaskIndex >= root.tasks.length) root.selectedTaskIndex = root.tasks.length - 1
   }
 
@@ -345,6 +353,7 @@ Panel {
 
   // All three views share a single paginated snapshot across every project.
   function selectQuickView(view) {
+    if (root.dragging) return
     if (view === root.quickView) return
     root.quickView = view
     root.selectedTaskIndex = -1
@@ -451,6 +460,83 @@ Panel {
       : { due_string: dueString, due_lang: "en" })
   }
 
+  function beginTaskDrag(taskId, point) {
+    if (root.actionBusy || root.loading || root.actionQueue.length || root.pendingRemovalIds.length || root.editingTaskId !== "") return
+    root.dragTaskId = taskId
+    root.selectedTaskIndex = root.tasks.findIndex(function(t) { return t.id === taskId })
+    keyCatcher.forceActiveFocus()
+    moveTaskDrag(point)
+  }
+
+  function moveTaskDrag(point) {
+    if (!root.dragging) return
+    root.dragPoint = point
+    locateTaskDrop()
+  }
+
+  function locateTaskDrop() {
+    root.dragDrop = null
+    var tabs = [todayViewButton, upcomingViewButton, undatedViewButton]
+    var dates = [Model.todayIsoDate(), Model.tomorrowIsoDate(), ""]
+    for (var i = 0; i < tabs.length; i++) {
+      var p = tabs[i].mapFromItem(keyCatcher, root.dragPoint.x, root.dragPoint.y)
+      if (p.x >= 0 && p.x < tabs[i].width && p.y >= 0 && p.y < tabs[i].height) {
+        root.dragDrop = { tab: i, datePayload: Model.dragDatePayload(dates[i]) }
+        return
+      }
+    }
+    var point = taskListView.mapFromItem(keyCatcher, root.dragPoint.x, root.dragPoint.y)
+    if (point.x < 0 || point.x >= taskListView.width || point.y < 0 || point.y >= taskListView.height) return
+    var y = point.y + taskListView.contentY
+    var index = taskListView.indexAt(1, y)
+    if (index < 0 && root.tasks.length && y >= taskListView.contentHeight) index = root.tasks.length - 1
+    var item = taskListView.itemAtIndex(index)
+    if (!item) return
+    var target = root.tasks[index]
+    var heading = item.startsGroup && y < item.y + item.taskTop
+    if (heading && root.quickView === "upcoming") {
+      root.dragDrop = { index: index, heading: true, datePayload: Model.dragDatePayload(target.groupDate) }
+      return
+    }
+    // Dropping a main task over a child refers to that whole parent tree.
+    var source = root.tasks.find(function(t) { return t.id === root.dragTaskId })
+    if (source && !source.subtaskDepth) {
+      while (index > 0 && root.tasks[index].subtaskDepth > 0) index--
+      target = root.tasks[index]
+    }
+    item = taskListView.itemAtIndex(index)
+    if (!item) return
+    var after = y >= item.y + item.taskTop + (item.height - item.taskTop) / 2
+    var plan = Model.taskDropPlan(root.tasks, root.dragTaskId, target.id, after, root.quickView)
+    if (!plan) return
+    var markerIndex = index
+    if (after) {
+      while (markerIndex + 1 < root.tasks.length && root.tasks[markerIndex + 1].subtaskDepth > target.subtaskDepth) markerIndex++
+    }
+    root.dragDrop = { index: markerIndex, after: after, plan: plan }
+  }
+
+  function cancelTaskDrag() {
+    root.dragTaskId = ""
+    root.dragDrop = null
+  }
+
+  function finishTaskDrag() {
+    var id = root.dragTaskId, drop = root.dragDrop
+    cancelTaskDrag()
+    if (!id || !drop) return
+    if (drop.plan) {
+      var uuid = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {
+        var n = Math.floor(Math.random() * 16)
+        return (c === "x" ? n : (n & 3) | 8).toString(16)
+      })
+      enqueueAction("reorder", id, {
+        datePayload: drop.plan.datePayload,
+        commands: [{ type: "item_update_day_orders", uuid: uuid, args: { ids_to_orders: drop.plan.orders } }]
+      })
+    } else enqueueAction("due", id, drop.datePayload)
+  }
+
   function requestDeleteSelected() {
     var task = selectedTask()
     if (task) enqueueAction("delete", task.id, null)
@@ -496,14 +582,33 @@ Panel {
     var url = root.apiBase + "/tasks/" + encodeURIComponent(action.taskId)
     if (action.kind === "create") url = root.apiBase + "/tasks/quick"
     else if (action.kind === "complete") url += "/close"
+    var payload = action.payload
+    if (action.kind === "reorder") {
+      action.dateStage = !!payload.datePayload
+      if (action.dateStage) payload = payload.datePayload
+      else { url = root.apiBase + "/sync"; payload = { commands: payload.commands } }
+    }
     var command = ["curl", "-q", "-fsS", "--max-time", "10", "-K", "-",
       "-X", action.kind === "delete" ? "DELETE" : "POST"]
-    if (action.payload !== null) command = command.concat([
-      "-H", "Content-Type: application/json", "-d", JSON.stringify(action.payload)])
+    if (payload !== null) command = command.concat([
+      "-H", "Content-Type: application/json", "-d", JSON.stringify(payload)])
     runAuthedCurl(actionProc, command.concat([url]))
   }
 
-  function finishAction(action, exitCode, stderrText) {
+  function finishAction(action, exitCode, stderrText, stdoutText) {
+    if (action.kind === "reorder" && action.generation === root.accountGeneration && exitCode === 0) {
+      if (action.dateStage) {
+        action.dateStage = false
+        runAuthedCurl(actionProc, ["curl", "-q", "-fsS", "--max-time", "10", "-K", "-",
+          "-X", "POST", "-H", "Content-Type: application/json", "-d",
+          JSON.stringify({ commands: action.payload.commands }), root.apiBase + "/sync"])
+        return
+      }
+      if (!Model.syncOrderSucceeded(stdoutText, action.payload.commands[0].uuid)) {
+        exitCode = -1
+        stderrText = "Impossible d’enregistrer l’ordre des tâches."
+      }
+    }
     root.actionBusy = false
     if (action.generation === root.accountGeneration) {
       root.dataRevision++
@@ -578,7 +683,7 @@ Panel {
 
   function refresh() {
     if (root.apiToken === "") return
-    if (root.loading || root.actionBusy || root.actionQueue.length > 0 || root.pendingRemovalIds.length > 0) {
+    if (root.dragging || root.loading || root.actionBusy || root.actionQueue.length > 0 || root.pendingRemovalIds.length > 0) {
       root.refreshPending = true
       return
     }
@@ -665,10 +770,11 @@ Panel {
   Process {
     id: actionProc
     property var action: ({})
+    stdout: StdioCollector { id: actionOut; waitForEnd: true }
     stderr: StdioCollector { id: actionErr; waitForEnd: true }
     onExited: function(exitCode) {
       var completed = action
-      Qt.callLater(function() { root.finishAction(completed, exitCode, actionErr.text) })
+      Qt.callLater(function() { root.finishAction(completed, exitCode, actionErr.text, actionOut.text) })
     }
   }
 
@@ -728,11 +834,49 @@ Panel {
     }
   }
 
+  Timer {
+    interval: 30
+    repeat: true
+    running: root.dragging
+    onTriggered: {
+      var p = taskListView.mapFromItem(keyCatcher, root.dragPoint.x, root.dragPoint.y)
+      if (p.x < 0 || p.x > taskListView.width || p.y < 0 || p.y > taskListView.height) return
+      var edge = Style.space(28)
+      var delta = p.y < edge ? -Style.space(8) : p.y > taskListView.height - edge ? Style.space(8) : 0
+      taskListView.contentY = Math.max(0, Math.min(Math.max(0, taskListView.contentHeight - taskListView.height), taskListView.contentY + delta))
+      root.locateTaskDrop()
+    }
+  }
+
+  component TaskDragArea: MouseArea {
+    id: dragArea
+    objectName: "taskPointer_" + taskId
+    required property string taskId
+    property point pressPoint
+    property bool moved: false
+    acceptedButtons: Qt.LeftButton
+    preventStealing: true
+    cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+    onPressed: function(mouse) { pressPoint = Qt.point(mouse.x, mouse.y); moved = false }
+    onPositionChanged: function(mouse) {
+      if (!pressed || (mouse.modifiers & Qt.ControlModifier)) return
+      if (!moved && Math.hypot(mouse.x - pressPoint.x, mouse.y - pressPoint.y) >= Qt.styleHints.startDragDistance) {
+        root.beginTaskDrag(taskId, mapToItem(keyCatcher, mouse.x, mouse.y))
+        moved = root.dragging
+      }
+      if (moved) root.moveTaskDrag(mapToItem(keyCatcher, mouse.x, mouse.y))
+    }
+    onReleased: if (moved) root.finishTaskDrag()
+    onCanceled: root.cancelTaskDrag()
+  }
+
   // ---- One task row: complete button + content + due label. ----------
   component ViewTab: Button {
     id: tab
     property string label: ""
     property string viewIcon: "today"
+    property int tabIndex: -1
+    hasCursor: root.dragging && root.dragDrop !== null && root.dragDrop.tab === tabIndex
     horizontalPadding: Style.spacing.sm
     // Keep the shell's button interactions and palette with custom vector content.
     implicitWidth: tabContents.implicitWidth + horizontalPadding * 2
@@ -770,6 +914,7 @@ Panel {
     // QML won't let two same-named required properties coexist between a
     // component and the instance declaring it (matches the built-in
     // bluetooth panel's DeviceRow/rowIndex convention).
+    opacity: root.dragTaskId === (task ? task.id : "") ? 0.45 : 1
     required property int rowIndex
     property bool hasCursor: false
     // Align the visible circle, accounting for its inset within the hit target.
@@ -835,11 +980,13 @@ Panel {
     // Selecting the row keeps mouse navigation consistent with the keyboard
     // cursor. The checkbox remains above this area so its single click keeps
     // completing the task, while a double click anywhere else completes it.
-    MouseArea {
+    TaskDragArea {
+      taskId: row.task.id
       anchors.fill: parent
       acceptedButtons: Qt.LeftButton
       onClicked: root.selectTask(row.rowIndex)
       onDoubleClicked: {
+        if (moved) return
         root.selectTask(row.rowIndex)
         root.requestComplete(row.task ? row.task.id : "")
       }
@@ -881,19 +1028,22 @@ Panel {
         font.family: root.contentFontFamily
         font.pixelSize: Style.font.body
 
-        MouseArea {
+        TaskDragArea {
+          taskId: row.task.id
           anchors.fill: parent
           acceptedButtons: Qt.LeftButton
           hoverEnabled: true
-          cursorShape: taskText.linkAt(mouseX, mouseY) !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor
+          cursorShape: root.dragging ? Qt.ClosedHandCursor : taskText.linkAt(mouseX, mouseY) !== "" ? Qt.PointingHandCursor : Qt.OpenHandCursor
 
           onClicked: function(mouse) {
+            if (moved) return
             root.selectTask(row.rowIndex)
             var link = taskText.linkAt(mouse.x, mouse.y)
             if ((mouse.modifiers & Qt.ControlModifier) && link !== "")
               Qt.openUrlExternally(link)
           }
           onDoubleClicked: function(mouse) {
+            if (moved) return
             root.selectTask(row.rowIndex)
             // Ctrl-clicking a link must never complete its task.
             if (!(mouse.modifiers & Qt.ControlModifier))
@@ -915,7 +1065,6 @@ Panel {
 
       Text {
         visible: row.dueLabel !== "" && !row.editing
-        height: visible ? implicitHeight : 0
         width: parent.width
         text: row.dueLabel
         color: row.overdue ? Color.urgent : root.secondaryForeground
@@ -950,13 +1099,15 @@ Panel {
 
     TodoistPanelKeyCatcher {
       id: keyCatcher
+      objectName: "keyCatcher"
       anchors.fill: parent
       clip: true
       blocked: tokenField.activeFocus || quickAddField.activeFocus || root.editingTaskId !== "" || root.helpOpen
       // First Escape backs out of Settings to the task list; a second one
       // (now that settingsView is false) closes the panel.
       onCloseRequested: {
-        if (root.settingsView) root.settingsView = false
+        if (root.dragging) root.cancelTaskDrag()
+        else if (root.settingsView) root.settingsView = false
         else root.close()
       }
       // Tab walks the Settings focus chain while Settings is showing, and
@@ -966,6 +1117,7 @@ Panel {
         else root.cycleQuickView(direction)
       }
       onMoveRequested: function(dx, dy) {
+        if (root.dragging) return
         if (dx !== 0) {
           if (!root.settingsView) root.cycleQuickView(dx)
           return
@@ -977,11 +1129,13 @@ Panel {
       // Enter edits tasks; in Settings it activates the focused control.
       // Text fields keep their own Enter-to-submit behavior via blocked above.
       onReturnRequested: {
+        if (root.dragging) return
         if (root.settingsView) root.activateFocusedSettingsControl()
         else root.startEditSelectedTask()
       }
       // Only Space requests activation, so Enter can never complete a task.
       onActivateRequested: {
+        if (root.dragging) return
         if (root.settingsView) root.activateFocusedSettingsControl()
         else root.activateSelectedTask()
       }
@@ -989,9 +1143,11 @@ Panel {
       // Ui/PanelKeyCatcher.qml) — the physical Delete key has no printable
       // event.text so PanelKeyCatcher never sees it as a distinct key.
       onDeleteRequested: {
+        if (root.dragging) return
         if (!root.settingsView) root.requestDeleteSelected()
       }
       onTextKey: function(t, modifiers) {
+        if (root.dragging) return
         if (t === "?") { root.helpOpen = !root.helpOpen; return }
         if (t === "r" || t === "R") { root.refresh(); return }
         if (t === "p" || t === "P") { root.settingsView = !root.settingsView; return }
@@ -1017,6 +1173,36 @@ Panel {
           if (ctrl) root.setSelectedTaskDue(null)
           else root.selectQuickView("undated")
           return
+        }
+      }
+
+      Rectangle {
+        id: dragPreview
+        visible: root.dragging
+        z: 20
+        width: Math.min(Style.space(230), parent.width)
+        height: dragCaption.implicitHeight + Style.spacing.sm * 2
+        x: Math.max(0, Math.min(parent.width - width, root.dragPoint.x + Style.space(12)))
+        y: Math.max(0, Math.min(parent.height - height, root.dragPoint.y + Style.space(18)))
+        color: Color.popups.background
+        border.color: Color.accent
+        border.width: Style.space(1)
+        radius: Style.cornerRadius
+        Text {
+          id: dragCaption
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.top: parent.top
+          anchors.margins: Style.spacing.sm
+          text: {
+            if (!root.dragDrop) return "Choisir une destination"
+            var payload = root.dragDrop.plan ? root.dragDrop.plan.datePayload : root.dragDrop.datePayload
+            return payload ? (payload.due_date ? Model.naturalDueDateLabel(payload.due_date) : "Sans date") : "Réordonner"
+          }
+          color: root.contentForeground
+          font.family: root.contentFontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
         }
       }
 
@@ -1448,6 +1634,8 @@ Panel {
 
               ViewTab {
                 id: todayViewButton
+                objectName: "todayViewButton"
+                tabIndex: 0
                 viewIcon: "today"
                 width: quickViewRow.cellWidth
                 label: "Auj (" + root.countForView("today") + ")"
@@ -1459,6 +1647,8 @@ Panel {
               }
               ViewTab {
                 id: upcomingViewButton
+                objectName: "upcomingViewButton"
+                tabIndex: 1
                 viewIcon: "upcoming"
                 width: quickViewRow.cellWidth
                 tooltipText: "De demain aux six prochains jours (d)"
@@ -1471,6 +1661,8 @@ Panel {
               }
               ViewTab {
                 id: undatedViewButton
+                objectName: "undatedViewButton"
+                tabIndex: 2
                 viewIcon: "inbox"
                 width: quickViewRow.cellWidth
                 tooltipText: "Tâches sans date dans tous les projets (i)"
@@ -1491,6 +1683,7 @@ Panel {
 
             ListView {
               id: taskListView
+              objectName: "taskListView"
               width: parent.width
               height: root.tasks.length > 0
                 ? Math.max(0, taskColumn.height - quickAddRow.implicitHeight
@@ -1500,7 +1693,7 @@ Panel {
               spacing: 0
               clip: true
               boundsBehavior: Flickable.StopAtBounds
-              interactive: contentHeight > height
+              interactive: !root.dragging && contentHeight > height
               model: root.tasks
               currentIndex: root.selectedTaskIndex
 
@@ -1508,12 +1701,21 @@ Panel {
                 id: delegateItem
                 required property var modelData
                 required property int index
+                readonly property real taskTop: delegateColumn.y + delegateRow.y
                 readonly property string dateGroup: modelData.dateGroup
                 readonly property bool startsGroup: index === 0
                   || root.tasks[index - 1].dateGroup !== dateGroup
                 width: taskListView.width
                 height: delegateColumn.y + delegateColumn.implicitHeight
 
+                Rectangle {
+                  z: 2
+                  width: parent.width
+                  height: Style.space(2)
+                  color: Color.accent
+                  visible: root.dragging && root.dragDrop !== null && root.dragDrop.index === delegateItem.index
+                  y: root.dragDrop && root.dragDrop.after ? parent.height - height : delegateItem.taskTop
+                }
                 Column {
                   id: delegateColumn
                   // Keep main-task separation, but visually join their subtasks.
@@ -1659,6 +1861,8 @@ Panel {
                       + "Ctrl+a / Ctrl+d / Ctrl+i (tâche sélectionnée) — échéance aujourd’hui / demain / aucune\n"
                       + "p — afficher/masquer les réglages\n"
                       + "↑/↓ ou k/j — déplacer la sélection\n"
+                      + "Glisser une tâche — réordonner ou changer de date sur un onglet / jour\n"
+                      + "Échap pendant le glissement — annuler\n"
                       + "Entrée / e — modifier le titre\n"
                       + "Espace — marquer comme terminée\n"
                       + "o — ouvrir la page de la tâche dans Todoist\n"
