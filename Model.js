@@ -125,6 +125,17 @@ function taskIsOverdue(task) {
   return localDueDateIso(task) < todayIsoDate()
 }
 
+// Sorted task dates make these sections contiguous without adding fake rows
+// to the task model (keyboard selection still addresses tasks only).
+function taskDateGroup(task, today) {
+  var date = localDueDateIso(task)
+  if (date === "") return "Sans date"
+  var reference = today || todayIsoDate()
+  if (date < reference) return "En retard"
+  if (date === reference) return "Aujourd’hui"
+  return "À venir"
+}
+
 // Overdue/due-soonest first, undated tasks last; priority breaks ties within
 // the same date, then content for a stable order.
 function sortedTasks(tasks) {

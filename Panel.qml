@@ -119,6 +119,9 @@ Panel {
   property bool actionBusy: false
 
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
+  // Preserve the theme's foreground hue in both light and dark themes.
+  // Size and spacing distinguish secondary text; avoid heavy darkening.
+  readonly property color secondaryForeground: Util.alpha(root.contentForeground, 0.85)
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
 
   readonly property string emptyStateMessage: root.quickView === "inbox" ? "Inbox est vide."
@@ -753,7 +756,12 @@ Panel {
     property bool hasCursor: false
 
     readonly property bool overdue: Model.taskIsOverdue(task)
-    readonly property string dueLabel: Model.taskDueLabel(task)
+    readonly property string dueLabel: {
+      // The section already names today/tomorrow; retain any exact due time.
+      if (Model.taskDateGroup(task) === "Aujourd’hui" || root.quickView === "tomorrow")
+        return Model.dueTimeLabel(task).trim()
+      return Model.taskDueLabel(task)
+    }
     readonly property bool completing: task ? root.completingTaskIds.indexOf(task.id) !== -1 : false
     readonly property bool editing: root.editingTaskId !== "" && task && root.editingTaskId === task.id
     // Todoist priority colors (API priority 4 = p1, the most urgent, down
@@ -862,6 +870,7 @@ Panel {
 
       TextField {
         id: editField
+        placeholderTextColor: root.secondaryForeground
         visible: row.editing
         height: visible ? implicitHeight : 0
         width: parent.width
@@ -875,7 +884,7 @@ Panel {
         height: visible ? implicitHeight : 0
         width: parent.width
         text: row.dueLabel
-        color: row.overdue ? Color.urgent : Qt.darker(root.contentForeground, 1.5)
+        color: row.overdue ? Color.urgent : root.secondaryForeground
         wrapMode: Text.WordWrap
         font.family: root.contentFontFamily
         font.pixelSize: Style.font.caption
@@ -1078,13 +1087,14 @@ Panel {
               width: parent.width
               text: "Collez votre jeton API personnel Todoist — Todoist → Réglages → Intégrations → Développeur."
               wrapMode: Text.WordWrap
-              color: Qt.darker(root.contentForeground, 1.3)
+              color: root.secondaryForeground
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.bodySmall
             }
 
             TextField {
               id: tokenField
+              placeholderTextColor: root.secondaryForeground
               width: parent.width
               password: true
               activeFocusOnTab: false
@@ -1139,7 +1149,7 @@ Panel {
               width: parent.width
               text: "Afficher le nombre de tâches sur l’icône de la barre, indépendamment de l’onglet affiché dans la fenêtre."
               wrapMode: Text.WordWrap
-              color: Qt.darker(root.contentForeground, 1.3)
+              color: root.secondaryForeground
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.bodySmall
             }
@@ -1256,7 +1266,7 @@ Panel {
                 width: parent.width
                 text: "Taille de la fenêtre — fixe quel que soit le nombre de tâches ; le contenu défile au lieu de redimensionner le panneau."
                 wrapMode: Text.WordWrap
-                color: Qt.darker(root.contentForeground, 1.3)
+                color: root.secondaryForeground
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.bodySmall
               }
@@ -1374,6 +1384,7 @@ Panel {
 
               TextField {
                 id: quickAddField
+              placeholderTextColor: root.secondaryForeground
                 width: parent.width
                 enabled: root.apiToken !== ""
                 font.pixelSize: Style.font.caption
@@ -1462,6 +1473,9 @@ Panel {
                 id: delegateItem
                 required property var modelData
                 required property int index
+                readonly property string dateGroup: Model.taskDateGroup(modelData)
+                readonly property bool startsGroup: index === 0
+                  || Model.taskDateGroup(root.tasks[index - 1]) !== dateGroup
                 width: taskListView.width
                 height: delegateColumn.implicitHeight
 
@@ -1469,6 +1483,19 @@ Panel {
                   id: delegateColumn
                   width: parent.width
                   spacing: Style.spacing.sm
+
+                  Text {
+                    width: parent.width
+                    visible: delegateItem.startsGroup
+                    text: root.quickView === "tomorrow" ? "Demain" : delegateItem.dateGroup
+                    textFormat: Text.PlainText
+                    topPadding: delegateItem.index === 0 ? Style.spacing.xs : Style.spacing.md
+                    bottomPadding: Style.spacing.xs
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: true
+                    color: delegateItem.dateGroup === "En retard" ? Color.urgent : root.contentForeground
+                  }
 
                   TaskRow {
                     id: delegateRow
@@ -1489,7 +1516,7 @@ Panel {
               visible: root.loading && root.tasks.length === 0
               width: parent.width
               text: "Chargement…"
-              color: Qt.darker(root.contentForeground, 1.3)
+              color: root.secondaryForeground
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.bodySmall
             }
@@ -1498,7 +1525,7 @@ Panel {
               visible: !root.loading && root.tasks.length === 0 && root.errorText === "" && root.apiToken !== ""
               width: parent.width
               text: root.emptyStateMessage
-              color: Qt.darker(root.contentForeground, 1.3)
+              color: root.secondaryForeground
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.bodySmall
             }

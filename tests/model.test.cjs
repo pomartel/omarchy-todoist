@@ -30,3 +30,25 @@ test('local dates, priority ordering and top-level filtering',()=>{
   assert.equal(m.topLevelTasks([a,{id:'c',parent_id:'a'}]).length,1);
   assert.equal(m.localDueDateIso(a),today);
 });
+
+test('date groups remain contiguous in sorted tasks without changing task identities',()=>{
+  const reference='2026-09-29';
+  const tasks=[
+    {id:'none',content:'none'},
+    {id:'future',content:'future',due:{date:'2026-12-15'}},
+    {id:'today',content:'today',due:{date:reference}},
+    {id:'late',content:'late',due:{date:'2026-09-28'}},
+    {id:'tomorrow',content:'tomorrow',due:{date:'2026-09-30'}}
+  ];
+  const sorted=m.sortedTasks(tasks);
+  assert.deepEqual(Array.from(sorted,t=>m.taskDateGroup(t,reference)),
+    ['En retard','Aujourd’hui','À venir','À venir','Sans date']);
+  assert.deepEqual(Array.from(sorted,t=>t.id),['late','today','tomorrow','future','none']);
+  assert.equal(m.taskDateGroup({due:null},reference),'Sans date');
+});
+
+test('timed task grouping uses the local date rather than the raw UTC date',()=>{
+  const local=new Date(2026,8,29,23,30);
+  const task={due:{date:local.toISOString(),datetime:local.toISOString()}};
+  assert.equal(m.taskDateGroup(task,'2026-09-29'),'Aujourd’hui');
+});

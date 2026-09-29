@@ -56,8 +56,11 @@ constraints, and a few things that didn't work the first time.
   turn on **Settings → Bar Count** to show a live Today/Inbox/All count
   right on the icon.
 - Panel lists matching tasks, sorted by due date then priority, color-coded
-  by Todoist priority (**p1 red, p2 yellow, p3 blue, p4 normal**). The Today
-  view includes overdue tasks, whose due labels are highlighted.
+  by Todoist priority (**p1 red, p2 yellow, p3 blue, p4 normal**). Tasks are grouped
+  under **En retard**, **Aujourd’hui**, **À venir**, and **Sans date**, with
+  empty groups omitted. The Tomorrow view uses **Demain**. Today/tomorrow
+  rows omit a redundant date label but retain any due time. Secondary text
+  and placeholders use a higher-contrast version of the theme foreground.
 - Click the circle next to a task to mark it complete. The row is struck
   through immediately and removed after server confirmation and a short delay.
   Failed actions stay visible with an error; edits and deletions wait for confirmation.

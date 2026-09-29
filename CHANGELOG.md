@@ -2,6 +2,13 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.15.2 — Date groups and readable secondary text
+
+- Group tasks under En retard, Aujourd’hui, À venir, and Sans date; use Demain in the Tomorrow view.
+- Keep keyboard navigation on tasks, with headings outside the selectable model.
+- Omit redundant today/tomorrow date labels while preserving due times.
+- Improve due-date, placeholder, settings-description, and status-text contrast using the theme foreground.
+
 ## v1.15.1 — Task shortcuts
 
 - Enter and `e` edit the selected task; Enter in the editor saves it.
