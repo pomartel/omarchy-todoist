@@ -78,9 +78,10 @@ constraints, and a few things that didn't work the first time.
   requests are coalesced. All pages are fetched before publishing a snapshot;
   Today, Tomorrow, All, and the bar count share those results. Inbox shows
   undated Inbox tasks. Active subtasks are included in views and counts,
-  using their own due dates. They are indented and show their parent’s title,
-  including when the parent is outside the selected view. Undated subtasks
-  appear under Sans date in All; they do not inherit a parent's due date.
+  nested directly beneath their parent, including undated subtasks and deeper
+  descendants. The main task determines the view and date group for its whole
+  subtree; any distinct subtask due dates remain visible on the rows. Counts
+  include every displayed task and subtask. Stored due dates are unchanged.
 - Matches whatever Omarchy theme you're running — the panel pulls its
   colors from the shell's own theme system, so it looks native under light,
   dark, or any custom accent color, with no separate config to keep in sync.

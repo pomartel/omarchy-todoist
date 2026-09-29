@@ -2,6 +2,12 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.16.1 — Keep subtasks with their parent
+
+- Show each main task followed by its entire nested subtree, including undated subtasks.
+- Use the main task's date group and view membership for all descendants; retain individual subtask due labels and task IDs.
+- Make counts match the displayed trees and remove cached descendants with a completed parent.
+
 ## v1.16 — Subtasks
 
 - Display and count active subtasks in every matching view, grouped by their own due dates.

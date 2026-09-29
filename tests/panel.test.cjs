@@ -212,28 +212,39 @@ test('Enter in settings activates its control without editing a task', () => {
   press('Return'); assert.equal(activated,1); assert.equal(r.editingTaskId,'');
 });
 
-test('subtasks are fetched, counted and actionable using their own dates and IDs',()=>{
+test('undated subtasks follow the main task in Today and remain individually editable',()=>{
   const {root:r,c,page,calls}=harness();
-  const parent=task('parent');
-  const child={...task('child',c.Model.todayIsoDate()),parent_id:'parent'};
-  r.refresh(); page([parent,child]); page([parent]);
-  assert.equal(r.tasks.length,1); assert.equal(r.tasks[0].id,'child');
-  assert.equal(r.tasks[0].parentTitle,'parent'); assert.equal(r.todayTaskCount,1);
+  const parent=task('parent',c.Model.todayIsoDate());
+  const child={...task('child'),parent_id:'parent'};
+  r.refresh(); page([child,parent]); page([child]);
+  assert.deepEqual(Array.from(r.tasks,t=>t.id),['parent','child']);
+  assert.equal(r.tasks[1].parentTitle,'parent'); assert.equal(r.todayTaskCount,2);
   assert.equal(r.allTaskCount,2); assert.equal(r.barCountValue,2);
-  r.selectedTaskIndex=0; r.startEditSelectedTask(); r.editDraft='Edited child'; r.commitEditTask();
+  assert.equal(r.inboxTaskCount,0);
+  r.selectedTaskIndex=1; r.startEditSelectedTask(); r.editDraft='Edited child'; r.commitEditTask();
   assert.match(calls.at(-1).command.at(-1), /\/tasks\/child$/);
 });
 
-test('undated subtasks appear in All and Inbox without inheriting parent dates',()=>{
+test('Inbox and Tomorrow include the whole subtree when the root matches',()=>{
   const {root:r,c,page}=harness();
-  const parent=task('parent',c.Model.todayIsoDate());
+  const tomorrow=c.Model.localDateFromIso(c.Model.todayIsoDate()); tomorrow.setDate(tomorrow.getDate()+1);
+  const date=tomorrow.getFullYear()+'-'+c.Model.pad2(tomorrow.getMonth()+1)+'-'+c.Model.pad2(tomorrow.getDate());
+  const parent=task('parent',date);
   const child={...task('child'),parent_id:'parent'};
-  r.refresh(); page([parent,child]); page([child]);
-  assert.equal(r.tasks.length,1); assert.equal(r.tasks[0].id,'parent');
-  assert.equal(r.inboxTaskCount,1);
+  const inbox=task('inbox'); const nested={...task('nested',date),parent_id:'inbox'};
+  r.refresh(); page([parent,child,inbox,nested]); page([inbox]);
+  assert.equal(r.tomorrowTaskCount,2); assert.equal(r.inboxTaskCount,2);
+  r.quickView='tomorrow'; r.applySnapshot();
+  assert.deepEqual(Array.from(r.tasks,t=>t.id),['parent','child']);
   r.quickView='inbox'; r.applySnapshot();
-  assert.equal(r.tasks[0].parentTitle,'parent');
-  r.quickView='all'; r.applySnapshot();
-  assert.equal(r.tasks.length,2);
-  assert.equal(c.Model.taskDateGroup(r.tasks[1]),'Sans date');
+  assert.deepEqual(Array.from(r.tasks,t=>t.id),['inbox','nested']);
+  assert.equal(r.tasks[1].dateGroup,'Sans date');
+});
+
+test('completing a main task removes its entire cached subtree together',()=>{
+  const {root:r,complete}=harness(); r.quickView='all';
+  r.allTasks=[task('parent'),{...task('child'),parent_id:'parent'},task('other')]; r.applySnapshot();
+  r.requestComplete('parent'); complete(); r.flushCompletedRemovals();
+  assert.deepEqual(Array.from(r.tasks,t=>t.id),['other']);
+  assert.equal(r.allTaskCount,1);
 });

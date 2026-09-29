@@ -52,20 +52,36 @@ test('timed task grouping uses the local date rather than the raw UTC date',()=>
   assert.equal(m.taskDateGroup(task,'2026-09-29'),'Aujourd’hui');
 });
 
-test('subtask context resolves absent-view parents and nested ancestors without mutating tasks',()=>{
-  const parent={id:'p',content:'Parent'};
+test('a root is followed by all descendants regardless of their dates',()=>{
+  const today=m.todayIsoDate();
+  const parent={id:'p',content:'Parent',due:{date:today}};
   const child={id:'c',content:'Child',parent_id:'p'};
-  const grandchild={id:'g',content:'Grandchild',parent_id:'c'};
-  const result=m.withParentContext([child,grandchild],[parent,child,grandchild]);
-  assert.equal(result[0].parentTitle,'Parent'); assert.equal(result[0].subtaskDepth,1);
-  assert.equal(result[1].parentTitle,'Child'); assert.equal(result[1].subtaskDepth,2);
-  assert.equal(child.subtaskDepth,undefined); assert.equal(result[0].id,'c');
+  const nested={id:'n',content:'Nested',parent_id:'c',due:{date:'2099-01-01'}};
+  const other={id:'z',content:'Z',due:{date:today}};
+  const rows=m.taskTreeForView([nested,other,child,parent],'today',[]);
+  assert.deepEqual(Array.from(rows,t=>t.id),['p','c','n','z']);
+  assert.deepEqual(Array.from(rows,t=>t.subtaskDepth),[0,1,2,0]);
+  assert.deepEqual(Array.from(rows,t=>t.dateGroup),Array(4).fill('Aujourd’hui'));
+  assert.equal(rows[2].due.date,'2099-01-01');
+  assert.equal(child.subtaskDepth,undefined);
 });
 
-test('missing parents and cyclic parent data remain safe to display',()=>{
-  const missing={id:'m',parent_id:'absent'};
+test('children of excluded roots never become standalone matches',()=>{
+  const parent={id:'p',content:'Parent',due:{date:'2099-01-01'}};
+  const child={id:'c',content:'Child',parent_id:'p',due:{date:m.todayIsoDate()}};
+  assert.equal(m.taskTreeForView([parent,child],'today',[]).length,0);
+  assert.equal(m.taskTreeForView([parent,child],'inbox',[child]).length,0);
+});
+
+test('missing parents and cyclic data remain visible exactly once',()=>{
+  const missing={id:'m',content:'M',parent_id:'absent'};
   const a={id:'a',content:'A',parent:'b'}, b={id:'b',content:'B',parent_id:'a'};
-  const result=m.withParentContext([missing,a,b],[a,b]);
-  assert.equal(result[0].subtaskDepth,1); assert.equal(result[0].parentTitle,'');
-  assert.equal(result[1].subtaskDepth,1); assert.equal(result[2].subtaskDepth,1);
+  const rows=m.taskTreeForView([missing,a,b],'all',[]);
+  assert.equal(rows.length,3); assert.equal(new Set(Array.from(rows,t=>t.id)).size,3);
+  assert.equal(rows[0].id,'m');
+});
+
+test('completed subtree removal includes nested descendants but not siblings',()=>{
+  const tasks=[{id:'p'},{id:'c',parent_id:'p'},{id:'n',parent_id:'c'},{id:'other'}];
+  assert.deepEqual(Array.from(m.taskIdsWithDescendants(tasks,['p'])).sort(),['c','n','p']);
 });

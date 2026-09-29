@@ -160,28 +160,77 @@ function sortedTasks(tasks) {
   return list
 }
 
-// Attach display-only parent context without changing task IDs or due dates.
-// Resolve parents from the full snapshot, including parents outside this view.
-function withParentContext(tasks, allTasks) {
+// Select root tasks for the view, then emit each entire subtree in preorder.
+// Descendants inherit placement, not actual due dates or mutation targets.
+function taskTreeForView(allTasks, view, inboxTasks) {
   var byId = Object.create(null)
-  ;(allTasks || []).forEach(function(task) { byId[task.id] = task })
-  return (tasks || []).map(function(task) {
-    var result = {}
-    for (var key in task) result[key] = task[key]
+  var children = Object.create(null)
+  var inboxIds = Object.create(null)
+  var seen = Object.create(null)
+  var output = []
+  var ordered = sortedTasks(allTasks)
+  ;(inboxTasks || []).forEach(function(task) { inboxIds[task.id] = true })
+  ordered.forEach(function(task) { byId[task.id] = task })
+  ordered.forEach(function(task) {
     var parentId = task.parent_id || task.parent || ""
-    var parent = byId[parentId]
-    result.parentTitle = parent ? parent.content : ""
-    result.subtaskDepth = 0
-    var seen = Object.create(null)
-    seen[task.id] = true
-    while (parentId && !seen[parentId]) {
-      seen[parentId] = true
-      result.subtaskDepth++
-      parent = byId[parentId]
-      parentId = parent ? (parent.parent_id || parent.parent || "") : ""
-    }
-    return result
+    if (!children[parentId]) children[parentId] = []
+    children[parentId].push(task)
   })
+
+  function appendTree(root) {
+    var include = view === "inbox" ? !!inboxIds[root.id] : tasksForView([root], view).length > 0
+    var group = taskDateGroup(root)
+    var stack = [{ task: root, depth: 0 }]
+    while (stack.length > 0) {
+      var entry = stack.pop()
+      var task = entry.task
+      if (seen[task.id]) continue
+      seen[task.id] = true
+      if (include) {
+        var row = {}
+        for (var key in task) row[key] = task[key]
+        var parent = byId[task.parent_id || task.parent || ""]
+        row.parentTitle = parent ? parent.content : ""
+        row.subtaskDepth = entry.depth
+        row.dateGroup = group
+        output.push(row)
+      }
+      var descendants = children[task.id] || []
+      for (var i = descendants.length - 1; i >= 0; i--)
+        stack.push({ task: descendants[i], depth: entry.depth + 1 })
+    }
+  }
+
+  ordered.forEach(function(task) {
+    var parentId = task.parent_id || task.parent || ""
+    if (!parentId || !byId[parentId]) appendTree(task)
+  })
+  // Malformed cycles must not hide tasks or loop forever. Also mark excluded
+  // trees visited so their children cannot become independent matches.
+  ordered.forEach(function(task) { if (!seen[task.id]) appendTree(task) })
+  return output
+}
+
+// Completing a parent also completes its descendants on Todoist. Remove the
+// whole cached subtree together, rather than briefly showing orphaned rows.
+function taskIdsWithDescendants(tasks, ids) {
+  var children = Object.create(null)
+  ;(tasks || []).forEach(function(task) {
+    var parentId = task.parent_id || task.parent || ""
+    if (!children[parentId]) children[parentId] = []
+    children[parentId].push(task.id)
+  })
+  var seen = Object.create(null)
+  var pending = ids.slice()
+  var result = []
+  while (pending.length > 0) {
+    var id = pending.pop()
+    if (seen[id]) continue
+    seen[id] = true
+    result.push(id)
+    pending = pending.concat(children[id] || [])
+  }
+  return result
 }
 
 // Todoist's natural-language filter uses the account/API timezone, which can

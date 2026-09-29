@@ -534,7 +534,7 @@ Panel {
   }
 
   function flushCompletedRemovals() {
-    var ids = root.pendingRemovalIds
+    var ids = Model.taskIdsWithDescendants(root.allTasks, root.pendingRemovalIds)
     root.pendingRemovalIds = []
     root.allTasks = root.allTasks.filter(function(t) { return ids.indexOf(t.id) === -1 })
     root.inboxTasks = root.inboxTasks.filter(function(t) { return ids.indexOf(t.id) === -1 })
@@ -557,13 +557,18 @@ Panel {
 
   function applySnapshot() {
     var selected = selectedTask()
-    root.tasks = Model.withParentContext(Model.sortedTasks(Model.tasksForView(
-      root.quickView === "inbox" ? root.inboxTasks : root.allTasks, root.quickView)), root.allTasks)
+    var views = {
+      today: Model.taskTreeForView(root.allTasks, "today", root.inboxTasks),
+      tomorrow: Model.taskTreeForView(root.allTasks, "tomorrow", root.inboxTasks),
+      inbox: Model.taskTreeForView(root.allTasks, "inbox", root.inboxTasks),
+      all: Model.taskTreeForView(root.allTasks, "all", root.inboxTasks)
+    }
+    root.tasks = views[root.quickView] || views.all
     root.selectedTaskIndex = selected ? root.tasks.findIndex(function(t) { return t.id === selected.id }) : -1
-    root.todayTaskCount = Model.tasksForView(root.allTasks, "today").length
-    root.tomorrowTaskCount = Model.tasksForView(root.allTasks, "tomorrow").length
-    root.inboxTaskCount = root.inboxTasks.length
-    root.allTaskCount = root.allTasks.length
+    root.todayTaskCount = views.today.length
+    root.tomorrowTaskCount = views.tomorrow.length
+    root.inboxTaskCount = views.inbox.length
+    root.allTaskCount = views.all.length
     refreshBarCount()
   }
 
@@ -757,6 +762,8 @@ Panel {
 
     readonly property bool overdue: Model.taskIsOverdue(task)
     readonly property string dueLabel: {
+      // Subtasks can have a different due date from their parent's section.
+      if (task && task.subtaskDepth > 0) return Model.taskDueLabel(task)
       // The section already names today/tomorrow; retain any exact due time.
       if (Model.taskDateGroup(task) === "Aujourd’hui" || root.quickView === "tomorrow")
         return Model.dueTimeLabel(task).trim()
@@ -1484,9 +1491,9 @@ Panel {
                 id: delegateItem
                 required property var modelData
                 required property int index
-                readonly property string dateGroup: Model.taskDateGroup(modelData)
+                readonly property string dateGroup: modelData.dateGroup
                 readonly property bool startsGroup: index === 0
-                  || Model.taskDateGroup(root.tasks[index - 1]) !== dateGroup
+                  || root.tasks[index - 1].dateGroup !== dateGroup
                 width: taskListView.width
                 height: delegateColumn.implicitHeight
 
