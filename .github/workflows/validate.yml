@@ -52,7 +52,7 @@ jobs:
 
       - name: Parse QML syntax
         run: |
-          for f in *.qml; do
+          for f in *.qml omatasks/ui/*.qml; do
             /usr/lib/qt6/bin/qmlformat "$f" > /dev/null
           done
 

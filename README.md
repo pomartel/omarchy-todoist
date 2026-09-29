@@ -55,8 +55,8 @@ constraints, and a few things that didn't work the first time.
   built-in Wi-Fi/Bluetooth panels. Hover it for your current task count, or
   turn on **Settings → Bar Count** to show a live Today/Sans date/total count
   right on the icon.
-- Panel lists matching tasks, sorted by date group and manual order (then due date and priority), with larger, thicker checkboxes colored
-  by Todoist priority (**p1 red, p2 yellow, p3 blue, p4 normal**). Task titles
+- Panel lists matching tasks, sorted by date group and manual order (then due date and priority), using OmaTasks’ original task rows and checkboxes colored
+  by Todoist priority (**p1 red, p2 orange, p3 blue, p4 normal**). Task titles
   retain the normal text color. Tasks are grouped
   under **En retard**, **Aujourd’hui**, **À venir**, and **Sans date**, with
   empty groups omitted. Today rows omit a redundant date label but retain
@@ -66,14 +66,13 @@ constraints, and a few things that didn't work the first time.
   date labels; subtasks remain under their parent’s day. Secondary text
   and placeholders use a higher-contrast version of the theme foreground.
   An omatasks-style metadata line places green time/date details (red when overdue)
-  on the left and a muted project name with `#` on the right. Inbox labels are
-  omitted. Project names are loaded through a paginated, one-minute cache.
-- Click the circle next to a task to mark it complete. The row is struck
-  through immediately and removed after server confirmation and a short delay.
+  on the left and a muted project name with `#` on the right. Project and picker metadata are loaded through a one-minute Sync cache.
+- Click the circle next to a task to mark it complete. It is removed after
+  server confirmation and a short delay.
   Failed actions stay visible with an error; edits and deletions wait for confirmation.
-- Quick-add box uses Todoist's own Quick Add parser — `p1`–`p4` priority,
-  `#Project`, `@label`, and natural-language due dates (`tomorrow at 5pm`,
-  `next Monday`) all work exactly like typing into Todoist itself. A bare
+- The French OmaTasks composer uses Todoist's own Quick Add parser — `p1`–`p4` priority,
+  `#Project`, `@label`, and natural-language due dates (`demain à 17h`,
+  `lundi prochain`) all work exactly like typing into Todoist itself. A bare
   task with no date in it (`Buy milk`) defaults to today in Today and tomorrow in Bientôt; Sans date leaves it undated. Explicit `sans date` is preserved.
 - **Aujourd’hui / Bientôt / Sans date** quick-view tabs above the list.
 - Drag task text to reorder within a group. Main tasks move with their subtasks;
@@ -138,7 +137,8 @@ point never shifts as your count changes.
   `omarchy-shell shell toggle omarchy-todoist`.
 - Click **Aujourd’hui**, **Bientôt**, or **Sans date** to switch views.
 - Click a task's circle to mark it complete.
-- Inline edits parse added metadata: `Réviser demain à 17h p1 #Travail`,
+- Click a task to open OmaTasks’ French details panel; **Modifier** or Enter/e opens its editor. The same composer provides project, section, date, priority, label, and assignee pickers plus descriptions, duration, deadlines, and reminders.
+- Edits also parse added metadata: `Réviser demain à 17h p1 #Travail`,
   `Review next Monday at 5pm p2 #"Work projects"`, or `#Work\ projects`.
   A preview shows recognized fields before Enter saves. Common French/English
   days, relative dates, recurring dates, ISO dates, and times are supported;
@@ -148,12 +148,12 @@ point never shifts as your count changes.
   keywords stay unchanged; quoted prose and Markdown links remain literal.
   Project names must match exactly (case-insensitive) and uniquely. Moving a
   task to another project makes it a root task there, with its descendants.
-  Failed edits restore the draft; if the content saves but the project move
-  fails, the error explicitly reports that partial result.
+  Failed edits keep the draft open. If only some changes save, the error
+  explicitly reports that partial result; retries reuse command identifiers.
 - Task titles render Markdown links. Ctrl-click a link to open it in your
-  default browser; a plain click selects the task.
-- Type in the box at the top of the list and press Enter (or click **Add**)
-  to create a task — see Quick Add syntax above (`p1`, `#Project`, dates).
+  default browser; a plain click opens its details.
+- Click **Ajouter une tâche** (or press `q`) to open the composer. Press Enter
+  or **Ajouter une tâche** to create the task; **Annuler** closes the form.
 - The gear icon (or `p`) opens Settings, organized into **Account**,
   **Bar Count**, **General** (Refresh now, Keyboard shortcuts), and
   **Advanced** (popup size) sections.
@@ -229,7 +229,8 @@ Uses the [Todoist API v1](https://developer.todoist.com/api/v1/):
 across every project. Mutations are serialized: `POST
 /tasks/quick` (Quick Add, natural-language parsing) for new tasks, `POST
 /tasks/{id}` to edit a task's title or due date, `POST /tasks/{id}/close` to complete,
-`DELETE /tasks/{id}` to delete. `o` opens
+`DELETE /tasks/{id}` to delete. `POST /sync` loads project/picker metadata and
+saves structured edits, reminders, moves, and ordering; every command status is checked. `o` opens
 `https://app.todoist.com/app/task/{id}` in your Todoist webapp. The older
 REST API v2 was retired by Todoist in February 2026, so this plugin only
 supports the current API.

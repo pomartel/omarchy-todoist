@@ -9,7 +9,8 @@ For anything beyond a small fix, open an issue first (or comment on an existing 
 ## Project layout
 
 - `BarWidget.qml` — the bar pill. Thin: reads state back from `Panel.qml`, decides what the pill shows.
-- `Panel.qml` — everything else. State, Todoist API calls (via `curl` `Process`es), settings persistence, and the panel UI, all in one file.
+- `Panel.qml` — state, serialized Todoist API calls (via `curl` `Process`es), settings persistence, view grouping, drag behavior, and the adapter for OmaTasks components.
+- `omatasks/` — vendored, French-localized OmaTasks rows, task details, composer, and metadata pickers. Keep its MIT license and attribution.
 - `EditParser.js` — inline edit syntax and project lookup validation; Todoist interprets extracted date expressions.
 - `Model.js` — pure data helpers only (sorting, date math, error-message formatting). No QML/Qt types here, so it stays easy to reason about in isolation.
 - `settings.py` — private, atomic settings persistence using Python 3. JSON is supplied on stdin.
@@ -17,7 +18,7 @@ For anything beyond a small fix, open an issue first (or comment on an existing 
 
 ## Conventions worth knowing before you dig in
 
-- **`Panel.qml` stays a single file.** This matches how Omarchy's own built-in panels (bluetooth, audio — both bigger than this file) are structured: one file per widget, with QML's inline `component Name: Base { ... }` syntax for internal pieces like `TaskRow`. Don't split it into multiple component files.
+- **Keep backend state in `Panel.qml` and reusable task UI in `omatasks/`.** Extend the vendored components rather than duplicating their task forms. Document upstream changes in `omatasks/README.md`.
 - **HTTP goes through `Quickshell.Io Process` running `curl -fsS`, never QML XHR.** This matches every built-in panel in the shell.
 - **Settings persist to `~/.local/state/omarchy/<plugin-id>/settings.json`**, written atomically as mode `600` inside a mode `700` directory. Don't add anything else that writes files outside this directory without calling it out clearly in the README.
 - **Keyboard handling is real work here**, not an afterthought — the panel is meant to be fully usable without a mouse. If you add a control, it needs to be reachable by keyboard too (see the existing `NavButton`/`NavActionButton` wrapper components and `settingsFocusChain()` for the pattern Settings uses). If you're integrating a shared `Ui/` component that doesn't expose its internal focusable element for an external `forceActiveFocus()` (`Dropdown`, `MultiSelect` are like this), test the actual keyboard flow yourself before calling it done — a clean `qs log` and `omarchy plugin validate` don't prove the keyboard interaction works.

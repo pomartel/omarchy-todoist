@@ -16,6 +16,7 @@ function harness() {
     barCountMode: 'all', stateReady: true, settingsLoaded: true, pendingSettings: '',
   };
   const c = { root, Model: {}, EditParser: {}, Qt: { callLater(fn) { later.push(fn); } },
+    omaService: {taskAdded() {}, taskUpdated() {}, taskCompleted() {}, operationFailed() {}},
     keyCatcher: {forceActiveFocus() {}}, quickAddField: {text: ''}, tokenField: {text: ''},
     completionRemovalTimer: timer, listProc: process(), projectProc: process(), actionProc: process(), settingsWriteProc: process(),
   };
@@ -357,14 +358,12 @@ test('changing accounts during project lookup prevents further edit stages',()=>
   assert.equal(calls.some(x=>x.command.includes('POST')),false);
 });
 
-test('project labels use a complete cached snapshot with pagination',()=>{
+test('rich metadata loads projects and editor options in one cached sync snapshot',()=>{
   const {root:r,c,calls}=harness();r.refreshProjects();
+  assert.match(calls[0].command.at(-1),/\/sync$/);
   c.projectProc.running=false;
-  r.finishProjects(0,JSON.stringify({results:[{id:'a',name:'One'}],next_cursor:'next'}),'');
-  assert.equal(r.allProjects.length,0);assert.match(calls.at(-1).command.at(-1),/cursor=next/);
-  c.projectProc.running=false;
-  r.finishProjects(0,JSON.stringify({results:[{id:'b',name:'Two'}],next_cursor:null}),'');
-  assert.equal(r.allProjects.length,2);assert.equal(c.Model.taskProjectName({project_id:'b'},r.allProjects),'Two');
+  r.finishProjects(0,JSON.stringify({projects:[{id:'a',name:'One'},{id:'b',name:'Two'}],sections:[{id:'s',project_id:'a'}],user:{id:'me'}}),'');
+  assert.equal(r.allProjects.length,2);assert.equal(r.taskMetadata.sections.length,1);assert.equal(r.richMetadataReady,true);
   const count=calls.length;r.refreshProjects();assert.equal(calls.length,count);
 });
 test('project errors preserve the prior snapshot and account changes clear labels',()=>{
@@ -374,4 +373,29 @@ test('project errors preserve the prior snapshot and account changes clear label
   r.finishProjects(0,JSON.stringify({results:[{id:'a',name:'Old'}],next_cursor:null}),'');
   assert.equal(r.allProjects.length,0);
   assert.equal(c.Model.taskProjectName({project_id:'inbox'},[{id:'inbox',name:'Inbox',inbox_project:true}]),'');
+});
+
+test('native composer creation keeps its retry id and reports success', () => {
+  const {root:r,c,calls} = harness(); let added = 0;
+  c.omaService.taskAdded = () => added++;
+  r.enqueueAction('richCreate', '__composer__', {body:{text:'Réviser demain'},requestId:'retry-uuid'});
+  const command = calls.at(-1).command;
+  assert.ok(command.includes('X-Request-Id: retry-uuid'));
+  assert.match(command.at(-1), /tasks\/quick$/);
+  assert.deepEqual(JSON.parse(command[command.indexOf('-d')+1]), {text:'Réviser demain'});
+  r.finishAction(c.actionProc.action,0,'','{}');
+  assert.equal(added,1);
+});
+
+test('native editor checks every Sync command before confirming a save', () => {
+  for (const statuses of [{move:'ok',edit:'ok'}, {move:'ok',edit:{error:'Rejected'}}, {}]) {
+    const {root:r,c} = harness(); let saved = 0, error = '';
+    c.omaService.taskUpdated = () => saved++;
+    c.omaService.operationFailed = message => error = message;
+    r.enqueueAction('richUpdate','task',{commands:[{uuid:'move',type:'item_move'},{uuid:'edit',type:'item_update'}]});
+    r.finishAction(c.actionProc.action,0,'',JSON.stringify({sync_status:statuses}));
+    assert.equal(saved, statuses.edit === 'ok' ? 1 : 0);
+    if (statuses.edit !== 'ok') assert.match(error, /pas confirmé/);
+    if (statuses.move === 'ok' && statuses.edit !== 'ok') assert.match(error, /Certaines modifications/);
+  }
 });

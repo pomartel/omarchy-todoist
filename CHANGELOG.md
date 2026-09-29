@@ -2,6 +2,14 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.21.0 — OmaTasks interface in French
+
+- Reuse OmaTasks’ task rows, task details, add/edit forms, and metadata pickers, translated into French.
+- Add structured editing for descriptions, projects, sections, dates, priorities, labels, assignees, duration, deadlines, and reminders.
+- Keep French inline date/priority/project parsing, grouped views, nested subtasks, keyboard shortcuts, and drag-to-date behavior.
+- Route the new forms through the existing serialized requests; preserve drafts on failure and check each Sync command before confirming a save.
+- Retain the upstream MIT license and validate the vendored components alongside the plugin.
+
 ## v1.20.0 — Task metadata styling
 
 - Show project names under tasks, aligned right, with omatasks-style date/time details on the left.

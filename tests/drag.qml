@@ -21,12 +21,19 @@ ShellRoot {
       console.log("DRAG UI RESULTS", qtest_results.passCount, "passed", qtest_results.failCount, "failed")
       Qt.callLater(Qt.quit)
     }
+    function cleanup() { console.log("TEST", qtest_results.functionName, qtest_results.failed ? "FAILED" : "PASSED") }
     function init() {
+      findChild(panel,"taskDetailsPopup").close()
+      panel.composerOpen = false
+      panel.richMetadataReady = true
+      panel.projectsSyncedAt = Date.now()
+      panel.projectsLoading = false
+      panel.taskMetadata = {user:{id:"me"}, sections:[], labels:[], reminders:[], collaborators:[]}
       panel.cancelEditTask(); panel.cancelTaskDrag(); panel.actionBusy = false; panel.actionQueue = []; panel.pendingTaskIds = []
-      panel.allProjects = []; panel.captured = []; panel.loading = false; panel.apiToken = "synthetic"; panel.settingsView = false
+      panel.allProjects = [{id:"inbox",name:"Boîte de réception",inbox_project:true},{id:"work",name:"Travail"}]; panel.captured = []; panel.loading = false; panel.apiToken = "synthetic"; panel.settingsView = false
       panel.quickView = "today"; panel.controller.show()
       panel.allTasks = Array.from({length: 25}, function(_, i) {
-        return {id: String(i), content: "Synthetic task " + i, day_order: i, due: {date: Model.todayIsoDate()}}
+        return {id: String(i), content: "Tâche de démonstration " + i, project_id:"inbox", day_order: i, due: {date: Model.todayIsoDate()}}
       })
       panel.applySnapshot()
       findChild(panel, "taskListView").positionViewAtBeginning()
@@ -57,38 +64,64 @@ ShellRoot {
       ]
       panel.applySnapshot(); wait(100)
       compare(findChild(panel,"taskTitle_a").color, panel.contentForeground)
-      compare(findChild(panel,"taskCheck_a").border.color, "#eb5757")
+      compare(findChild(panel,"taskCheck_a").border.color, "#ef615b")
       compare(findChild(panel,"taskProject_a").text, "Travail  #")
-      compare(findChild(panel,"taskProject_c").text, "")
+      compare(findChild(panel,"taskProject_c").text, "Inbox  #")
       grabImage(window.contentItem).save("/tmp/todoist-project-style.png")
     }
-    function test_inline_edit_metadata() {
+    function test_rich_edit_metadata() {
       panel.selectedTaskIndex = 0
       panel.startEditSelectedTask()
-      var field = findChild(panel, "editField_0")
+      tryVerify(function() { return findChild(panel,"taskName") !== null })
+      var field = findChild(panel, "taskName")
       tryCompare(field, "activeFocus", true)
-      field.text = "Synthetic task 0 demain à 17h p1"
-      wait(50)
-      grabImage(window.contentItem).save("/tmp/todoist-inline-edit.png")
+      field.text = "Tâche de démonstration 0 demain à 17h p1"
+      wait(80)
+      grabImage(window.contentItem).save("/tmp/todoist-oma-edit.png")
       keyClick(Qt.Key_Return)
-      compare(panel.editingTaskId, "")
       compare(panel.captured.length, 1)
-      compare(payload().content, "Synthetic task 0")
-      compare(payload().due_string, "demain à 17h")
-      compare(payload().priority, 4)
+      compare(payload().commands[0].type, "item_update")
+      compare(payload().commands[0].args.content, undefined)
+      compare(payload().commands[0].args.due.string, "demain à 17h")
+      compare(payload().commands[0].args.priority, 4)
     }
-    function test_inline_edit_validation() {
+    function test_rich_edit_validation() {
       panel.selectedTaskIndex = 0
       panel.startEditSelectedTask()
-      var field = findChild(panel, "editField_0")
+      tryVerify(function() { return findChild(panel,"taskName") !== null })
+      var field = findChild(panel, "taskName")
       tryCompare(field, "activeFocus", true)
       field.text = "demain p1"
       keyClick(Qt.Key_Return)
-      compare(panel.editingTaskId, "0")
-      compare(panel.editDraft, "demain p1")
+      compare(field.text, "demain p1")
       compare(panel.captured.length, 0)
+      verify(findChild(panel,"taskComposer").message.length > 0)
       keyClick(Qt.Key_Escape)
-      compare(panel.editingTaskId, "")
+    }
+    function test_add_composer_and_project_picker() {
+      panel.allTasks = []; panel.applySnapshot()
+      panel.openComposer()
+      tryVerify(function() { return findChild(panel,"taskName") !== null })
+      var field = findChild(panel,"taskName"), composer = findChild(panel,"taskComposer")
+      tryCompare(field,"activeFocus",true)
+      field.text = "Préparer le rapport demain à 15h"
+      composer.openPicker("project")
+      wait(80)
+      grabImage(window.contentItem).save("/tmp/todoist-oma-add-picker.png")
+      composer.choose(composer.choices.find(function(c) { return c.id === "work" }))
+      wait(80)
+      grabImage(window.contentItem).save("/tmp/todoist-oma-add.png")
+      field.forceActiveFocus(); keyClick(Qt.Key_Return)
+      compare(panel.captured.length,1)
+      verify(payload().text.indexOf("#Travail") >= 0)
+      verify(payload().text.indexOf("aujourd’hui") < 0)
+    }
+    function test_task_details() {
+      panel.showTaskDetails(panel.tasks[0],false)
+      tryVerify(function() { return findChild(panel,"editTaskButton") !== null })
+      wait(80)
+      grabImage(window.contentItem).save("/tmp/todoist-oma-details.png")
+      compare(findChild(panel,"editTaskButton").text,"Modifier")
     }
     function test_hover_alignment_and_cursor() {
       var row = findChild(panel, "taskRow_0")
@@ -167,10 +200,14 @@ ShellRoot {
         {id:"y",content:"Second child",parent_id:"a",day_order:1},
         {id:"b",content:"Another parent",due:{date:Model.todayIsoDate()}}]
       panel.applySnapshot(); wait(100)
+      findChild(panel, "taskListView").positionViewAtBeginning(); wait(100)
       var item = start("y"), p = move(item, pointer("x"), 60, 1)
       verify(panel.dragDrop.plan !== undefined)
       compare(panel.dragDrop.plan.orders.y, 0)
-      p = move(item, pointer("b"), 60, 1)
+      // Keep the second target visible when narrow layouts have scrolled.
+      findChild(panel, "taskListView").positionViewAtIndex(panel.tasks.findIndex(function(t) { return t.id === "b" }), ListView.Contain)
+      wait(30)
+      p = move(item, pointer("b"), 60, pointer("b").height / 2)
       compare(panel.dragDrop, null)
       mouseRelease(item, p.x, p.y)
       compare(panel.captured.length, 0)

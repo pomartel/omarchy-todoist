@@ -15,6 +15,7 @@ with tempfile.TemporaryDirectory(prefix='todoist-drag-') as temporary:
         (directory / name).symlink_to(shell / name)
     plugin = directory / 'plugin'
     plugin.mkdir()
+    shutil.copytree(repo / "omatasks", plugin / "omatasks")
     for source in list(repo.glob('*.qml')) + list(repo.glob('*.js')):
         shutil.copy(source, plugin / source.name)
     source = (plugin / 'Panel.qml').read_text()
@@ -42,7 +43,9 @@ Item {
   function fittedContentHeight(value) { return value }
 }
 ''')
-    shutil.copy(repo / 'tests/drag.qml', directory / 'shell.qml')
+    fixture = (repo / 'tests/drag.qml').read_text()
+    width = max(300, min(1000, int(os.environ.get('TODOIST_TEST_WIDTH', '400'))))
+    (directory / 'shell.qml').write_text(fixture.replace('implicitWidth: 400', f'implicitWidth: {width}'))
     result = subprocess.run(['quickshell', '-p', temporary, '--no-color'],
         env={**os.environ, 'QT_QPA_PLATFORM': 'offscreen'}, capture_output=True, text=True, timeout=45)
     output = result.stdout + result.stderr

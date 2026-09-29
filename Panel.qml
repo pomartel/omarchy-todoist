@@ -1,5 +1,8 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls as C
+import "omatasks/ui" as Oma
+import "omatasks/Model.js" as OmaModel
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -82,6 +85,60 @@ Panel {
   property string editDraft: ""
 
   property bool helpOpen: false
+  property bool composerOpen: false
+  property var detailTask: null
+  property bool detailEdit: false
+  property bool richMetadataReady: false
+  property var taskMetadata: ({})
+  onEditingTaskIdChanged: {
+    if (!editingTaskId) return
+    var task = root.allTasks.find(function(t) { return t.id === root.editingTaskId })
+    if (task) showTaskDetails(task, true)
+  }
+
+  QtObject {
+    id: omaService
+    readonly property var tasks: root.allTasks
+    readonly property var projects: root.allProjects
+    readonly property var sections: root.taskMetadata.sections || []
+    readonly property var labels: root.taskMetadata.labels || []
+    readonly property var collaborators: root.taskMetadata.collaborators || []
+    readonly property var reminders: root.taskMetadata.reminders || []
+    readonly property var completedInfo: root.taskMetadata.completed_info || []
+    readonly property var user: root.taskMetadata.user || ({})
+    readonly property var projectMap: OmaModel.byId(projects)
+    readonly property var sectionMap: OmaModel.byId(sections)
+    readonly property date now: new Date(root.lastSyncedAt || Date.now())
+    readonly property bool saving: root.actionBusy || root.actionQueue.length > 0
+    readonly property string error: root.actionError
+    signal taskAdded()
+    signal taskUpdated(string taskId)
+    signal taskCompleted(string taskId)
+    signal operationFailed(string message)
+    function addTask(text, requestId) {
+      if (saving || !root.apiToken) return false
+      root.enqueueAction("richCreate", "__composer__", { body: {text: text, auto_reminder: true}, requestId: requestId })
+      return true
+    }
+    function updateTask(taskId, commands) {
+      if (saving || !root.apiToken || root.taskIsPending(taskId)) return false
+      root.enqueueAction("richUpdate", taskId, {commands: commands, sync_token: "*", resource_types: []})
+      return true
+    }
+    function completeTask(task) {
+      if (saving || !root.apiToken || root.taskIsPending(task.id)) return false
+      root.requestComplete(task.id)
+      return true
+    }
+  }
+
+  // Compatibility with existing quick-add shortcuts: focus opens the composer.
+  QtObject {
+    id: quickAddField
+    property string text: ""
+    readonly property bool activeFocus: root.composerOpen
+    function forceActiveFocus() { root.openComposer() }
+  }
 
   // Fixed popup size, user-adjustable from Settings → Advanced. Deliberately
   // NOT derived from content (mainColumn.implicitHeight) — letting the
@@ -236,6 +293,10 @@ Panel {
     completionRemovalTimer.stop()
     root.allTasks = []
     root.allProjects = []
+    root.taskMetadata = ({})
+    root.richMetadataReady = false
+    root.composerOpen = false
+    root.detailTask = null
     root.projectsSyncedAt = 0
     root.projectError = ""
     root.tasks = []
@@ -451,6 +512,25 @@ Panel {
     proc.stdinEnabled = false
   }
 
+  function openComposer() {
+    if (root.dragging || root.actionBusy) return
+    root.composerOpen = true
+    refreshProjects()
+    Qt.callLater(function() {
+      taskListView.contentY = Math.max(0, taskListView.contentHeight - taskListView.footerItem.height)
+      if (taskListView.footerItem && taskListView.footerItem.composer) taskListView.footerItem.composer.focusInput()
+    })
+  }
+
+  function showTaskDetails(task, edit) {
+    if (!task || root.dragging) return
+    root.detailTask = task
+    root.detailEdit = edit
+    refreshProjects()
+    taskDetails.open()
+    Qt.callLater(function() { if (detailLoader.item && edit) detailLoader.item.startEditing() })
+  }
+
   function editPlan(task, draft) {
     return EditParser.parse(task, draft, Model.localDueDateIso(task))
   }
@@ -647,9 +727,10 @@ Panel {
       return
     }
     var url = root.apiBase + "/tasks/" + encodeURIComponent(action.taskId)
-    if (action.kind === "create") url = root.apiBase + "/tasks/quick"
+    if (action.kind === "create" || action.kind === "richCreate") url = root.apiBase + "/tasks/quick"
+    else if (action.kind === "richUpdate") url = root.apiBase + "/sync"
     else if (action.kind === "complete") url += "/close"
-    var payload = action.payload
+    var payload = action.kind === "richCreate" ? action.payload.body : action.payload
     if (action.kind === "reorder") {
       action.dateStage = !!payload.datePayload
       if (action.dateStage) payload = payload.datePayload
@@ -657,12 +738,23 @@ Panel {
     }
     var command = ["curl", "-q", "-fsS", "--max-time", "10", "-K", "-",
       "-X", action.kind === "delete" ? "DELETE" : "POST"]
+    if (action.kind === "richCreate") command = command.concat(["-H", "X-Request-Id: " + action.payload.requestId])
     if (payload !== null) command = command.concat([
       "-H", "Content-Type: application/json", "-d", JSON.stringify(payload)])
     runAuthedCurl(actionProc, command.concat([url]))
   }
 
   function finishAction(action, exitCode, stderrText, stdoutText) {
+    if (action.kind === "richUpdate" && action.generation === root.accountGeneration && exitCode === 0) {
+      var statuses = {}
+      try { statuses = JSON.parse(stdoutText).sync_status || {} } catch (e) {}
+      var failed = action.payload.commands.filter(function(c) { return statuses[c.uuid] !== "ok" })
+      if (failed.length) {
+        exitCode = -1
+        stderrText = (failed.length < action.payload.commands.length ? "Certaines modifications ont été enregistrées. " : "")
+          + "Todoist n’a pas confirmé toutes les modifications. Réessayez."
+      }
+    }
     if (action.kind === "smartEdit" && action.generation === root.accountGeneration && exitCode === 0) {
       try { if (advanceEdit(action, stdoutText)) return }
       catch (e) { exitCode = -1; stderrText = String(e.message || e) }
@@ -707,6 +799,16 @@ Panel {
         root.pendingTaskIds = root.pendingTaskIds.filter(function(id) { return id !== action.taskId })
         root.completingTaskIds = root.completingTaskIds.filter(function(id) { return id !== action.taskId })
       }
+      if (action.kind === "richCreate" || action.kind === "richUpdate" || action.kind === "complete") {
+        if (exitCode !== 0) omaService.operationFailed(root.actionError)
+        else if (action.kind === "richCreate") omaService.taskAdded()
+        else if (action.kind === "richUpdate") omaService.taskUpdated(action.taskId)
+        else omaService.taskCompleted(action.taskId)
+        if (action.kind === "richUpdate" || action.kind === "richCreate") {
+          root.projectsSyncedAt = 0
+          refreshProjects()
+        }
+      }
       root.refreshPending = true
     }
     processActionQueue()
@@ -739,6 +841,10 @@ Panel {
       all: Model.taskTreeForView(root.allTasks, "all")
     }
     root.tasks = views[root.quickView] || views.all
+    if (root.detailTask) {
+      var current = root.allTasks.find(function(t) { return t.id === root.detailTask.id })
+      if (current) root.detailTask = current
+    }
     root.selectedTaskIndex = selected ? root.tasks.findIndex(function(t) { return t.id === selected.id }) : -1
     root.todayTaskCount = views.today.length
     root.upcomingTaskCount = views.upcoming.length
@@ -791,9 +897,9 @@ Panel {
   }
 
   function fetchProjectPage(cursor) {
-    var url = root.apiBase + "/projects?limit=200"
-    if (cursor) url += "&cursor=" + encodeURIComponent(cursor)
-    runAuthedCurl(projectProc, ["curl", "-q", "-fsS", "--max-time", "10", "-K", "-", url])
+    runAuthedCurl(projectProc, ["curl", "-q", "-fsS", "--max-time", "10", "-K", "-",
+      "-X", "POST", "-H", "Content-Type: application/json", "-d", JSON.stringify({sync_token: "*",
+        resource_types: ["projects", "sections", "labels", "user", "collaborators", "reminders", "completed_info"]}), root.apiBase + "/sync"])
   }
 
   function finishProjects(exitCode, stdoutText, stderrText) {
@@ -804,19 +910,13 @@ Panel {
     }
     try {
       if (exitCode !== 0) throw new Error(Model.errorMessageForExit(exitCode, stderrText))
-      var page = EditParser.parseProjectPage(stdoutText)
-      projectProc.accumulated = projectProc.accumulated.concat(page.results)
-      if (page.next_cursor !== null) {
-        if (projectProc.cursors.indexOf(page.next_cursor) !== -1) throw new Error("Curseur des projets répété.")
-        projectProc.cursors.push(page.next_cursor)
-        fetchProjectPage(page.next_cursor)
-        return
-      }
-      root.allProjects = projectProc.accumulated
+      var data = JSON.parse(stdoutText)
+      if (!data || !Array.isArray(data.projects) || !data.user) throw new Error("Réponse Todoist incomplète.")
+      root.allProjects = data.projects.filter(function(p) { return !p.is_deleted && !p.is_archived })
+      root.taskMetadata = data
+      root.richMetadataReady = true
       root.projectsSyncedAt = Date.now()
-    } catch (e) {
-      root.projectError = "Projets : " + String(e.message || e)
-    }
+    } catch (e) { root.projectError = "Projets et options : " + String(e.message || e) }
     root.projectsLoading = false
   }
 
@@ -977,29 +1077,6 @@ Panel {
     }
   }
 
-  component TaskDragArea: MouseArea {
-    id: dragArea
-    objectName: "taskPointer_" + taskId
-    required property string taskId
-    property point pressPoint
-    property bool moved: false
-    acceptedButtons: Qt.LeftButton
-    preventStealing: true
-    cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
-    onPressed: function(mouse) { pressPoint = Qt.point(mouse.x, mouse.y); moved = false }
-    onPositionChanged: function(mouse) {
-      if (!pressed || (mouse.modifiers & Qt.ControlModifier)) return
-      if (!moved && Math.hypot(mouse.x - pressPoint.x, mouse.y - pressPoint.y) >= Qt.styleHints.startDragDistance) {
-        root.beginTaskDrag(taskId, mapToItem(keyCatcher, mouse.x, mouse.y))
-        moved = root.dragging
-      }
-      if (moved) root.moveTaskDrag(mapToItem(keyCatcher, mouse.x, mouse.y))
-    }
-    onReleased: if (moved) root.finishTaskDrag()
-    onCanceled: root.cancelTaskDrag()
-  }
-
-  // ---- One task row: complete button + content + due label. ----------
   component ViewTab: Button {
     property string label: ""
     property int tabIndex: -1
@@ -1009,236 +1086,28 @@ Panel {
     horizontalPadding: Style.spacing.sm
   }
 
-  component TaskRow: Item {
+  component TaskRow: Oma.TaskRow {
     id: row
-    objectName: "taskRow_" + task.id
-    required property var task
-    // Not named "index" — a delegate instantiating this component also
-    // needs its own ListView-injected "required property int index", and
-    // QML won't let two same-named required properties coexist between a
-    // component and the instance declaring it (matches the built-in
-    // bluetooth panel's DeviceRow/rowIndex convention).
-    opacity: root.dragTaskId === (task ? task.id : "") ? 0.45 : 1
     required property int rowIndex
     property bool hasCursor: false
-    // Align the visible circle, accounting for its inset within the hit target.
-    readonly property real childIndent: checkBtn.width + Style.spacing.sm
-      - (checkBtn.width - checkCircle.width) / 2
-    readonly property string projectName: Model.taskProjectName(task, root.allProjects)
-
-    readonly property bool overdue: Model.taskIsOverdue(task)
-    readonly property string dueLabel: {
-      // Bientôt names the day in the section heading, not on each task row.
-      if (root.quickView === "upcoming") return Model.dueTimeLabel(task).trim()
-      // Subtasks can have a different due date from their parent's section.
-      if (task && task.subtaskDepth > 0) return Model.taskDueLabel(task)
-      // Today is already named by the section; future tasks keep their dates.
-      if (Model.taskDateGroup(task) === "Aujourd’hui")
-        return Model.dueTimeLabel(task).trim()
-      return Model.taskDueLabel(task)
-    }
-    readonly property bool completing: task ? root.completingTaskIds.indexOf(task.id) !== -1 : false
-    readonly property bool editing: root.editingTaskId !== "" && task && root.editingTaskId === task.id
-    // Todoist priority colors (API priority 4 = p1, the most urgent, down
-    // to 1 = p4/no priority). Fixed, theme-independent hex — these carry a
-    // specific meaning ("this is p1") the same way in every theme, unlike
-    // an accent color that's meant to shift with the user's theme.
-    readonly property color priorityColor: {
-      if (!task) return root.contentForeground
-      if (task.priority === 4) return "#eb5757"
-      if (task.priority === 3) return "#f2b84b"
-      if (task.priority === 2) return "#4a90d2"
-      return root.contentForeground
-    }
-
-    // editField.text isn't kept bound to root.editDraft once the user has
-    // typed in it once (assigning to a QML property severs a declarative
-    // binding on it) — re-sync explicitly whenever this row starts editing.
-    onEditingChanged: {
-      if (editing) {
-        editField.text = root.editDraft
-        Qt.callLater(function() {
-          if (row.editing) { editField.forceActiveFocus(); editField.selectAll() }
-        })
-      }
-    }
-
-    readonly property real rowTopPadding: task && task.subtaskDepth > 0 ? Style.spacing.hairline : Style.spacing.sm
-    readonly property real rowBottomPadding: rowIndex + 1 < root.tasks.length
-      && root.tasks[rowIndex + 1].subtaskDepth > 0 ? Style.spacing.hairline : Style.spacing.sm
-    height: Math.max(checkBtn.height, textColumn.implicitHeight) + rowTopPadding + rowBottomPadding
-
-    HoverHandler {
-      id: taskHover
-      enabled: !row.editing
-      cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
-    }
-
-    Rectangle {
-      objectName: "taskHighlight_" + row.task.id
-      anchors.fill: parent
-      anchors.leftMargin: -Style.spacing.xs
-      anchors.rightMargin: -Style.spacing.xs
-      radius: Style.cornerRadius
-      visible: row.hasCursor || (taskHover.hovered && !root.dragging)
-      color: Style.hoverFillFor(root.contentForeground, Color.accent)
-    }
-
-    // Selecting the row keeps mouse navigation consistent with the keyboard
-    // cursor. The checkbox remains above this area so its single click keeps
-    // completing the task, while a double click anywhere else completes it.
-    TaskDragArea {
-      taskId: row.task.id
-      anchors.fill: parent
-      acceptedButtons: Qt.LeftButton
-      onClicked: root.selectTask(row.rowIndex)
-      onDoubleClicked: {
-        if (moved) return
-        root.selectTask(row.rowIndex)
-        root.requestComplete(row.task ? row.task.id : "")
-      }
-    }
-
-    PanelActionButton {
-      id: checkBtn
-      anchors.left: parent.left
-      anchors.top: parent.top
-      // Center on the title's first line, not the taller button hit area.
-      anchors.topMargin: textColumn.y
-        + ((row.editing ? editField.height : taskFontMetrics.height) - height) / 2
-      iconText: ""
-      tooltipText: "Marquer comme terminée (Espace)"
-      foreground: row.priorityColor
-      enabled: row.task && !root.taskIsPending(row.task.id)
-      onClicked: root.requestComplete(row.task ? row.task.id : "")
-      Rectangle {
-        id: checkCircle
-        objectName: "taskCheck_" + row.task.id
-        anchors.centerIn: parent
-        width: Style.space(16)
-        height: width
-        radius: width / 2
-        border.width: Style.space(2)
-        border.color: row.priorityColor
-        color: row.completing ? row.priorityColor : "transparent"
-        opacity: checkBtn.enabled ? 1 : 0.5
-      }
-    }
-
-    FontMetrics {
-      id: taskFontMetrics
-      font: taskText.font
-    }
-
-    Column {
-      id: textColumn
-      objectName: "taskContent_" + row.task.id
-      anchors.left: checkBtn.right
-      anchors.leftMargin: Style.spacing.sm
-      anchors.right: parent.right
-      anchors.verticalCenter: parent.verticalCenter
-      spacing: 2
-
-      Text {
-        id: taskText
-        objectName: "taskTitle_" + row.task.id
-        visible: !row.editing
-        height: visible ? implicitHeight : 0
-        width: parent.width
-        text: Model.taskContentHtml(row.task ? row.task.content : "")
-        textFormat: Text.StyledText
-        linkColor: root.contentForeground
-        opacity: row.completing ? 0.5 : 1.0
-        font.strikeout: row.completing
-        color: root.contentForeground
-        wrapMode: Text.WordWrap
-        font.family: root.contentFontFamily
-        font.pixelSize: Style.font.body
-
-        TaskDragArea {
-          taskId: row.task.id
-          anchors.fill: parent
-          acceptedButtons: Qt.LeftButton
-          hoverEnabled: true
-          cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
-
-          onClicked: function(mouse) {
-            if (moved) return
-            root.selectTask(row.rowIndex)
-            var link = taskText.linkAt(mouse.x, mouse.y)
-            if ((mouse.modifiers & Qt.ControlModifier) && link !== "")
-              Qt.openUrlExternally(link)
-          }
-          onDoubleClicked: function(mouse) {
-            if (moved) return
-            root.selectTask(row.rowIndex)
-            // Ctrl-clicking a link must never complete its task.
-            if (!(mouse.modifiers & Qt.ControlModifier))
-              root.requestComplete(row.task ? row.task.id : "")
-          }
-        }
-      }
-
-      TextField {
-        id: editField
-        objectName: "editField_" + row.task.id
-        placeholderText: "Titre, demain à 17h, p1, #Projet"
-        placeholderTextColor: root.secondaryForeground
-        visible: row.editing
-        height: visible ? implicitHeight : 0
-        width: parent.width
-        onTextChanged: if (row.editing) root.editDraft = text
-        onAccepted: root.commitEditTask()
-        Keys.onEscapePressed: root.cancelEditTask()
-      }
-
-      Text {
-        visible: row.editing && text !== ""
-        width: parent.width
-        text: {
-          if (!row.editing) return ""
-          try { return root.editPlan(row.task, root.editDraft).hints.join(" · ") }
-          catch (e) { return String(e.message || e) }
-        }
-        wrapMode: Text.WordWrap
-        color: root.secondaryForeground
-        font.family: root.contentFontFamily
-        font.pixelSize: Style.font.caption
-      }
-
-      Item {
-        width: parent.width
-        visible: !row.editing && (row.dueLabel !== "" || row.projectName !== "")
-        implicitHeight: Math.max(dueMetadata.implicitHeight, projectMetadata.implicitHeight)
-        Text {
-          id: dueMetadata
-          textFormat: Text.PlainText
-          anchors.left: parent.left
-          anchors.right: projectMetadata.left
-          anchors.rightMargin: row.projectName !== "" ? Style.spacing.sm : 0
-          anchors.verticalCenter: parent.verticalCenter
-          text: row.dueLabel ? "▣ " + row.dueLabel + (row.task.due && row.task.due.is_recurring ? " ↻" : "") : ""
-          color: row.overdue ? Color.urgent : "#4baf63"
-          elide: Text.ElideRight
-          font.family: root.contentFontFamily
-          font.pixelSize: Style.font.caption
-        }
-        Text {
-          id: projectMetadata
-          objectName: "taskProject_" + row.task.id
-          textFormat: Text.PlainText
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-          width: row.projectName ? Math.min(implicitWidth, parent.width * (row.dueLabel ? 0.45 : 1)) : 0
-          text: row.projectName ? row.projectName + "  #" : ""
-          color: root.secondaryForeground
-          horizontalAlignment: Text.AlignRight
-          elide: Text.ElideRight
-          font.family: root.contentFontFamily
-          font.pixelSize: Style.font.caption
-        }
-      }
-    }
+    readonly property real childIndent: Style.space(26)
+    objectName: "taskRow_" + task.id
+    service: omaService
+    view: root.quickView
+    selected: hasCursor
+    dragging: root.dragTaskId === task.id
+    listDragging: root.dragging
+    reorderEnabled: !omaService.saving && !root.composerOpen && !taskDetails.visible
+    opacity: dragging ? 0.3 : 1
+    dueTextOverride: root.quickView === "upcoming" || Model.taskDateGroup(task) === "Aujourd’hui"
+      ? Model.dueTimeLabel(task).trim() : Model.taskDueLabel(task)
+    onActivated: function(task) { root.selectTask(rowIndex); root.showTaskDetails(task, false) }
+    onContextRequested: function(task, x, y) { root.selectTask(rowIndex); root.showTaskDetails(task, false) }
+    onSelectionToggled: function(task) { root.selectTask(rowIndex) }
+    onDragStarted: function(x, y) { root.beginTaskDrag(task.id, mapToItem(keyCatcher, x, y)) }
+    onDragMoved: function(x, y) { root.moveTaskDrag(mapToItem(keyCatcher, x, y)) }
+    onDragEnded: root.finishTaskDrag()
+    onDragCancelled: root.cancelTaskDrag()
   }
 
   // ---- Chrome ----------------------------------------------------------
@@ -1264,11 +1133,12 @@ Panel {
       objectName: "keyCatcher"
       anchors.fill: parent
       clip: true
-      blocked: tokenField.activeFocus || quickAddField.activeFocus || root.editingTaskId !== "" || root.helpOpen
+      blocked: tokenField.activeFocus || root.composerOpen || taskDetails.visible || root.helpOpen
       // First Escape backs out of Settings to the task list; a second one
       // (now that settingsView is false) closes the panel.
       onCloseRequested: {
         if (root.dragging) root.cancelTaskDrag()
+        else if (root.composerOpen) root.composerOpen = false
         else if (root.settingsView) root.settingsView = false
         else root.close()
       }
@@ -1335,6 +1205,44 @@ Panel {
           if (ctrl) root.setSelectedTaskDue(null)
           else root.selectQuickView("undated")
           return
+        }
+      }
+
+      C.Popup {
+        id: taskDetails
+        objectName: "taskDetailsPopup"
+        x: 0; y: 0
+        width: parent.width
+        height: Math.min(parent.height, Math.max(Style.space(200),
+          detailLoader.item ? detailLoader.item.implicitHeight + padding * 2 : Style.space(200)))
+        padding: Style.space(16)
+        focus: true
+        closePolicy: detailLoader.item && (detailLoader.item.editing || detailLoader.item.busy)
+          ? C.Popup.NoAutoClose : C.Popup.CloseOnEscape | C.Popup.CloseOnPressOutside
+        background: Rectangle { color: Color.popups.background; border.width: 1; border.color: Color.popups.border; radius: Style.cornerRadius }
+        onClosed: { root.cancelEditTask(); root.detailTask = null }
+        contentItem: Item {
+          Text {
+            anchors.fill: parent
+            visible: !root.richMetadataReady
+            text: root.projectError || "Chargement des options…"
+            wrapMode: Text.Wrap
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.body
+          }
+          Loader {
+            id: detailLoader
+            anchors.fill: parent
+            active: taskDetails.visible && root.detailTask !== null && root.richMetadataReady
+            sourceComponent: Oma.TaskDetails {
+              service: omaService
+              task: root.detailTask || ({})
+              onCloseRequested: taskDetails.close()
+              onTaskRequested: function(task) { root.showTaskDetails(task, false) }
+              Component.onCompleted: if (root.detailEdit) Qt.callLater(startEditing)
+            }
+          }
         }
       }
 
@@ -1709,29 +1617,15 @@ Panel {
             Item {
               id: quickAddRow
               width: parent.width
-              implicitHeight: Math.max(quickAddField.implicitHeight, settingsButton.implicitHeight + Style.spacing.xs * 2)
-
-              TextField {
-                id: quickAddField
-                placeholderTextColor: root.secondaryForeground
-                anchors.fill: parent
-                rightPadding: settingsButton.width + Style.spacing.xs * 2 + Border.right(_borderSpec)
-                enabled: root.apiToken !== ""
-                font.pixelSize: Style.font.caption
-                placeholderText: "Ajouter une tâche… (p1, #Projet, demain à 17 h)"
-                text: root.quickAddText
-                onTextChanged: root.quickAddText = text
-                onAccepted: root.submitQuickAdd()
-                // Escape here just leaves the field (back to normal keyboard
-                // nav) rather than falling through to the panel's own
-                // Escape, which would otherwise do nothing while blocked.
-                Keys.onEscapePressed: keyCatcher.forceActiveFocus()
+              implicitHeight: Style.space(28)
+              Oma.Action {
+                text: "+   Ajouter une tâche"
+                onClicked: root.openComposer()
               }
               PanelActionButton {
                 id: settingsButton
                 objectName: "settingsButton"
                 anchors.right: parent.right
-                anchors.rightMargin: Style.spacing.xs
                 anchors.verticalCenter: parent.verticalCenter
                 iconText: "󰒓"
                 tooltipText: "Réglages (p)"
@@ -1804,17 +1698,72 @@ Panel {
               id: taskListView
               objectName: "taskListView"
               width: parent.width
-              height: root.tasks.length > 0
-                ? Math.max(0, taskColumn.height - quickAddRow.implicitHeight
+              height: Math.max(0, taskColumn.height - quickAddRow.implicitHeight
                     - quickViewRow.implicitHeight - taskListSeparator.implicitHeight
                     - taskColumn.spacing * 3)
-                : 0
               spacing: 0
               clip: true
               boundsBehavior: Flickable.StopAtBounds
               interactive: !root.dragging && contentHeight > height
               model: root.tasks
               currentIndex: root.selectedTaskIndex
+              cacheBuffer: Style.space(1000)
+              C.ScrollBar.vertical: C.ScrollBar { policy: taskListView.contentHeight > taskListView.height ? C.ScrollBar.AsNeeded : C.ScrollBar.AlwaysOff }
+              header: Column {
+                width: taskListView.width
+                spacing: Style.space(8)
+                Text {
+                  visible: root.tasks.length === 0
+                  width: parent.width
+                  text: root.loading ? "Chargement…" : root.emptyStateMessage
+                  color: root.secondaryForeground
+                  wrapMode: Text.Wrap
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  bottomPadding: Style.space(12)
+                }
+                Text {
+                  visible: root.errorText !== ""
+                  width: parent.width
+                  text: root.errorText
+                  color: Color.urgent
+                  wrapMode: Text.Wrap
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  bottomPadding: Style.space(12)
+                }
+              }
+              footer: Column {
+                property alias composer: composerLoader.item
+                width: taskListView.width - Style.space(4)
+                spacing: Style.space(10)
+                Oma.Action {
+                  visible: !root.composerOpen
+                  text: "+   Ajouter une tâche"
+                  onClicked: root.openComposer()
+                }
+                Text {
+                  visible: root.composerOpen && !root.richMetadataReady
+                  width: parent.width
+                  text: root.projectError || "Chargement des options…"
+                  wrapMode: Text.Wrap
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.body
+                }
+                Loader {
+                  id: composerLoader
+                  width: parent.width
+                  active: root.composerOpen && root.richMetadataReady
+                  sourceComponent: Oma.Composer {
+                    service: omaService
+                    initialDue: root.quickView === "today" ? "aujourd’hui" : root.quickView === "upcoming" ? "demain" : ""
+                    onFinished: { root.composerOpen = false; keyCatcher.forceActiveFocus() }
+                    onCancelled: { root.composerOpen = false; keyCatcher.forceActiveFocus() }
+                    Component.onCompleted: Qt.callLater(focusInput)
+                  }
+                }
+              }
 
               delegate: Item {
                 id: delegateItem
@@ -1837,30 +1786,28 @@ Panel {
                 }
                 Column {
                   id: delegateColumn
-                  // Keep main-task separation, but visually join their subtasks.
-                  y: delegateItem.index > 0 && !delegateItem.startsGroup
-                    && delegateItem.modelData.subtaskDepth === 0 ? Style.spacing.sm : 0
+                  y: 0
                   width: parent.width
-                  spacing: Style.spacing.sm
-
-                  Text {
+                  spacing: 0
+                  Item {
                     width: parent.width
                     visible: delegateItem.startsGroup
-                    text: delegateItem.dateGroup
-                    textFormat: Text.PlainText
-                    topPadding: delegateItem.index === 0 ? Style.spacing.xs : Style.spacing.md
-                    bottomPadding: Style.spacing.xs
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.bodySmall
-                    font.bold: true
-                    color: delegateItem.dateGroup === "En retard" ? Color.urgent : root.contentForeground
+                    height: Style.space(40)
+                    Oma.Label {
+                      anchors.left: parent.left; anchors.right: parent.right
+                      anchors.bottom: parent.bottom; anchors.bottomMargin: Style.space(9)
+                      text: delegateItem.dateGroup
+                      font.bold: true
+                      color: text === "En retard" ? "#ef615b" : Color.popups.text
+                    }
+                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Color.popups.text; opacity: 0.12 }
                   }
 
                   TaskRow {
                     id: delegateRow
                     // Each child checkbox starts at its parent's text column.
                     x: (delegateItem.modelData.subtaskDepth || 0) * delegateRow.childIndent
-                    width: Math.max(0, parent.width - x)
+                    width: Math.max(0, parent.width - x - Style.space(4))
                     task: delegateItem.modelData
                     rowIndex: delegateItem.index
                     hasCursor: root.taskCursorActive && delegateItem.index === root.selectedTaskIndex
@@ -1869,37 +1816,7 @@ Panel {
               }
             }
 
-            Text {
-              // Only shown for the initial fetch on an empty list — a
-              // background/periodic refresh of an already-populated list
-              // stays quiet rather than growing the panel with a redundant
-              // "Loading…" row underneath tasks that are already showing.
-              visible: root.loading && root.tasks.length === 0
-              width: parent.width
-              text: "Chargement…"
-              color: root.secondaryForeground
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.bodySmall
-            }
 
-            Text {
-              visible: !root.loading && root.tasks.length === 0 && root.errorText === "" && root.apiToken !== ""
-              width: parent.width
-              text: root.emptyStateMessage
-              color: root.secondaryForeground
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.bodySmall
-            }
-
-            Text {
-              visible: root.errorText !== ""
-              width: parent.width
-              text: root.errorText
-              color: Color.urgent
-              wrapMode: Text.WordWrap
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.bodySmall
-            }
           }
         }
       }
