@@ -996,12 +996,19 @@ Panel {
       id: checkBtn
       anchors.left: parent.left
       anchors.top: parent.top
+      // Center on the title's first line, not the taller button hit area.
       anchors.topMargin: row.rowTopPadding
+        + ((row.editing ? editField.height : taskFontMetrics.height) - height) / 2
       iconText: row.completing ? "●" : "○"
       tooltipText: "Marquer comme terminée (Espace)"
       foreground: row.textColor
       enabled: row.task && !root.taskIsPending(row.task.id)
       onClicked: root.requestComplete(row.task ? row.task.id : "")
+    }
+
+    FontMetrics {
+      id: taskFontMetrics
+      font: taskText.font
     }
 
     Column {
@@ -1224,70 +1231,6 @@ Panel {
           // fixing this one's cramped feel.
           spacing: Style.space(12)
 
-          // ---- Header ---------------------------------------------------
-          // Height comes from titleRow alone (not a Math.max of both
-          // children) and actionsRow centers on that sibling directly,
-          // rather than on the parent's own height — sizing a parent from a
-          // child while anchoring that child back to the parent's center is
-          // a classic Qt Quick binding-loop trap.
-          Item {
-            width: parent.width
-            height: titleRow.implicitHeight
-
-            // Icon beside the title, matching the Wi-Fi panel's own header.
-            Row {
-              id: titleRow
-              anchors.left: parent.left
-              anchors.top: parent.top
-              anchors.right: actionsRow.left
-              anchors.rightMargin: Style.spacing.sm
-              // Matches the Wi-Fi panel's own icon-to-title gap
-              // (heroIcon → heroLabels leftMargin) literally — Style
-              // .spacing.xs (3px) read as barely any margin at all next to
-              // the now-bigger 24px icon.
-              spacing: Style.space(14)
-
-              TodoistIcon {
-                id: headerIcon
-                iconSize: Style.font.display
-                color: root.contentForeground
-                anchors.verticalCenter: parent.verticalCenter
-              }
-
-              Column {
-                anchors.verticalCenter: parent.verticalCenter
-                width: titleRow.width - headerIcon.width - titleRow.spacing
-
-                Text {
-                  text: "Todoist"
-                  font.bold: true
-                  font.family: root.contentFontFamily
-                  font.pixelSize: Style.font.title
-                  color: root.contentForeground
-                }
-
-              }
-            }
-
-            Row {
-              id: actionsRow
-              anchors.right: parent.right
-              anchors.verticalCenter: titleRow.verticalCenter
-              spacing: Style.spacing.sm
-
-              PanelActionButton {
-                iconText: root.settingsView ? "✕" : "󰒓"
-                tooltipText: root.settingsView ? "Fermer les réglages (Échap)" : "Réglages (p)"
-                foreground: root.contentForeground
-                onClicked: root.settingsView = !root.settingsView
-              }
-            }
-          }
-
-          PanelSeparator {
-            foreground: root.contentForeground
-          }
-
           // ---- Settings view ---------------------------------------------
           Column {
             id: settingsColumn
@@ -1296,10 +1239,23 @@ Panel {
             height: visible ? implicitHeight : 0
             spacing: Style.spacing.md
 
-            PanelSectionHeader {
-              text: "COMPTE"
-              foreground: root.contentForeground
-              fontFamily: root.contentFontFamily
+            Row {
+              width: parent.width
+              spacing: Style.spacing.sm
+              PanelSectionHeader {
+                width: parent.width - closeSettingsButton.width - parent.spacing
+                anchors.verticalCenter: parent.verticalCenter
+                text: "COMPTE"
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+              }
+              PanelActionButton {
+                id: closeSettingsButton
+                iconText: "✕"
+                tooltipText: "Fermer les réglages (Échap)"
+                foreground: root.contentForeground
+                onClicked: root.settingsView = false
+              }
             }
 
             Text {
@@ -1603,8 +1559,9 @@ Panel {
 
               TextField {
                 id: quickAddField
-              placeholderTextColor: root.secondaryForeground
-                width: parent.width
+                placeholderTextColor: root.secondaryForeground
+                width: Math.max(0, parent.width - settingsButton.width - quickAddRow.spacing)
+                anchors.verticalCenter: parent.verticalCenter
                 enabled: root.apiToken !== ""
                 font.pixelSize: Style.font.caption
                 placeholderText: "Ajouter une tâche… (p1, #Projet, demain à 17 h)"
@@ -1615,6 +1572,15 @@ Panel {
                 // nav) rather than falling through to the panel's own
                 // Escape, which would otherwise do nothing while blocked.
                 Keys.onEscapePressed: keyCatcher.forceActiveFocus()
+              }
+              PanelActionButton {
+                id: settingsButton
+                objectName: "settingsButton"
+                anchors.verticalCenter: parent.verticalCenter
+                iconText: "󰒓"
+                tooltipText: "Réglages (p)"
+                foreground: root.contentForeground
+                onClicked: root.settingsView = true
               }
             }
 
@@ -1785,7 +1751,7 @@ Panel {
         }
       }
 
-      // Shortcuts help, toggled by "?" or the header's "?" button. Declared
+      // Shortcuts help, toggled by "?" or the settings' "?" button. Declared
       // last so it paints above everything else.
       Item {
         id: helpOverlay

@@ -2,6 +2,12 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.18.1 — Compact panel toolbar
+
+- Remove the Todoist header and place the settings cog beside the add-task field.
+- Keep a close button beside the account heading in settings.
+- Align task checkboxes vertically with the first line of the task name.
+
 ## v1.18.0 — Drag and drop
 
 - Reorder tasks and sibling subtasks by dragging, saving manual order to Todoist.
