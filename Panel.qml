@@ -729,6 +729,39 @@ Panel {
   }
 
   // ---- One task row: complete button + content + due label. ----------
+  component ViewTab: Button {
+    id: tab
+    property string label: ""
+    property string viewIcon: "today"
+    horizontalPadding: Style.spacing.sm
+    // Keep the shell's button interactions and palette with custom vector content.
+    implicitWidth: tabContents.implicitWidth + horizontalPadding * 2
+      + _reservedBorderLeft + _reservedBorderRight
+    implicitHeight: tabContents.implicitHeight + verticalPadding * 2
+      + _reservedBorderTop + _reservedBorderBottom
+    Accessible.name: label
+    Row {
+      id: tabContents
+      anchors.centerIn: parent
+      spacing: Style.spacing.sm
+      ViewIcon {
+        name: tab.viewIcon
+        day: { root.lastSyncedAt; return new Date().getDate() }
+        color: tab.selected ? tab._selectedColor : tab.foreground
+        anchors.verticalCenter: parent.verticalCenter
+      }
+      Text {
+        text: tab.label
+        textFormat: Text.PlainText
+        color: tab.selected ? tab._selectedColor : tab.foreground
+        font.family: tab.fontFamily
+        font.pixelSize: tab.fontSize
+        font.bold: tab.selected
+        anchors.verticalCenter: parent.verticalCenter
+      }
+    }
+  }
+
   component TaskRow: Item {
     id: row
     required property var task
@@ -1413,32 +1446,35 @@ Panel {
                 : width >= widest * 2 + spacing ? 2 : 1
               readonly property real cellWidth: (width - spacing * (columns - 1)) / columns
 
-              Button {
+              ViewTab {
                 id: todayViewButton
+                viewIcon: "today"
                 width: quickViewRow.cellWidth
-                text: "Auj (" + root.countForView("today") + ")"
+                label: "Auj (" + root.countForView("today") + ")"
                 selected: root.quickView === "today"
                 bordered: true
                 focusable: false
                 fontSize: Style.font.caption
                 onClicked: root.selectQuickView("today")
               }
-              Button {
+              ViewTab {
                 id: upcomingViewButton
+                viewIcon: "upcoming"
                 width: quickViewRow.cellWidth
                 tooltipText: "De demain aux six prochains jours (d)"
-                text: "Bientôt (" + root.countForView("upcoming") + ")"
+                label: "Bientôt (" + root.countForView("upcoming") + ")"
                 selected: root.quickView === "upcoming"
                 bordered: true
                 focusable: false
                 fontSize: Style.font.caption
                 onClicked: root.selectQuickView("upcoming")
               }
-              Button {
+              ViewTab {
                 id: undatedViewButton
+                viewIcon: "inbox"
                 width: quickViewRow.cellWidth
                 tooltipText: "Tâches sans date dans tous les projets (i)"
-                text: "Sans date (" + root.countForView("undated") + ")"
+                label: "Sans date (" + root.countForView("undated") + ")"
                 selected: root.quickView === "undated"
                 bordered: true
                 focusable: false

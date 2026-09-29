@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "omarchy-todoist",
   "name": "Todoist",
-  "version": "1.17.3",
+  "version": "1.17.4",
   "author": "aryan-techie",
   "license": "MIT",
   "description": "Compteur de tâches Todoist dans la barre, avec un panneau pour afficher les tâches à faire ou en retard, les terminer et en ajouter rapidement.",

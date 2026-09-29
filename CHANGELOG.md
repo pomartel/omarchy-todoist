@@ -2,6 +2,10 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.17.4 — Tab icons
+
+- Add theme-colored calendar and tray icons inspired by omatasks to the three view tabs.
+
 ## v1.17.3 — Tighter subtask spacing
 
 - Reduce vertical padding within subtask groups while preserving spacing between main tasks.
