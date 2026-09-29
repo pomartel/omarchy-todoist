@@ -92,12 +92,17 @@ Panel {
 
   property bool loading: false
   property string fetchError: ""
+  property string projectError: ""
   property string actionError: ""
   property string settingsError: ""
-  readonly property string errorText: [settingsError, actionError, fetchError].filter(function(s) { return s !== "" }).join("\n")
+  readonly property string errorText: [settingsError, actionError, fetchError, projectError].filter(function(s) { return s !== "" }).join("\n")
   property int accountGeneration: 0
   property int dataRevision: 0
   property var allTasks: []
+  property var allProjects: []
+  property real projectsSyncedAt: 0
+  property bool projectsLoading: false
+  onAllTasksChanged: if (allTasks.length && stateReady) refreshProjects()
   property var pendingTaskIds: []
   property string pendingSettings: ""
   property bool stateReady: false
@@ -230,6 +235,9 @@ Panel {
     root.pendingRemovalIds = []
     completionRemovalTimer.stop()
     root.allTasks = []
+    root.allProjects = []
+    root.projectsSyncedAt = 0
+    root.projectError = ""
     root.tasks = []
     root.todayTaskCount = 0
     root.upcomingTaskCount = 0
@@ -487,6 +495,8 @@ Panel {
         fetchEditProjects(action, page.next_cursor)
         return true
       }
+      root.allProjects = action.projects
+      root.projectsSyncedAt = Date.now()
       action.projectId = EditParser.resolveProject(action.projects, action.payload.projectName)
       var task = root.allTasks.find(function(t) { return t.id === action.taskId })
       action.moveNeeded = task && String(task.project_id) !== action.projectId
@@ -770,6 +780,46 @@ Panel {
     runAuthedCurl(listProc, ["curl", "-q", "-fsS", "--max-time", "10", "-K", "-", url])
   }
 
+  function refreshProjects() {
+    if (!root.apiToken || root.projectsLoading || Date.now() - root.projectsSyncedAt < 60000) return
+    root.projectError = ""
+    root.projectsLoading = true
+    projectProc.generation = root.accountGeneration
+    projectProc.accumulated = []
+    projectProc.cursors = []
+    fetchProjectPage("")
+  }
+
+  function fetchProjectPage(cursor) {
+    var url = root.apiBase + "/projects?limit=200"
+    if (cursor) url += "&cursor=" + encodeURIComponent(cursor)
+    runAuthedCurl(projectProc, ["curl", "-q", "-fsS", "--max-time", "10", "-K", "-", url])
+  }
+
+  function finishProjects(exitCode, stdoutText, stderrText) {
+    if (projectProc.generation !== root.accountGeneration) {
+      root.projectsLoading = false
+      if (root.apiToken && root.allTasks.length) refreshProjects()
+      return
+    }
+    try {
+      if (exitCode !== 0) throw new Error(Model.errorMessageForExit(exitCode, stderrText))
+      var page = EditParser.parseProjectPage(stdoutText)
+      projectProc.accumulated = projectProc.accumulated.concat(page.results)
+      if (page.next_cursor !== null) {
+        if (projectProc.cursors.indexOf(page.next_cursor) !== -1) throw new Error("Curseur des projets répété.")
+        projectProc.cursors.push(page.next_cursor)
+        fetchProjectPage(page.next_cursor)
+        return
+      }
+      root.allProjects = projectProc.accumulated
+      root.projectsSyncedAt = Date.now()
+    } catch (e) {
+      root.projectError = "Projets : " + String(e.message || e)
+    }
+    root.projectsLoading = false
+  }
+
   function finishFetch(exitCode, stdoutText, stderrText) {
     if (listProc.generation !== root.accountGeneration || listProc.revision !== root.dataRevision) {
       root.loading = false
@@ -831,6 +881,18 @@ Panel {
     onExited: function(exitCode) {
       // Defer until collectors have drained; no new fetch starts while loading.
       Qt.callLater(function() { root.finishFetch(exitCode, listOut.text, listErr.text) })
+    }
+  }
+
+  Process {
+    id: projectProc
+    property int generation: -1
+    property var accumulated: []
+    property var cursors: []
+    stdout: StdioCollector { id: projectOut; waitForEnd: true }
+    stderr: StdioCollector { id: projectErr; waitForEnd: true }
+    onExited: function(exitCode) {
+      Qt.callLater(function() { root.finishProjects(exitCode, projectOut.text, projectErr.text) })
     }
   }
 
@@ -961,13 +1023,8 @@ Panel {
     property bool hasCursor: false
     // Align the visible circle, accounting for its inset within the hit target.
     readonly property real childIndent: checkBtn.width + Style.spacing.sm
-      - (checkBtn.width - checkboxMetrics.advanceWidth) / 2
-    TextMetrics {
-      id: checkboxMetrics
-      text: "○"
-      font.family: checkBtn.fontFamily
-      font.pixelSize: checkBtn.fontSize
-    }
+      - (checkBtn.width - checkCircle.width) / 2
+    readonly property string projectName: Model.taskProjectName(task, root.allProjects)
 
     readonly property bool overdue: Model.taskIsOverdue(task)
     readonly property string dueLabel: {
@@ -986,7 +1043,7 @@ Panel {
     // to 1 = p4/no priority). Fixed, theme-independent hex — these carry a
     // specific meaning ("this is p1") the same way in every theme, unlike
     // an accent color that's meant to shift with the user's theme.
-    readonly property color textColor: {
+    readonly property color priorityColor: {
       if (!task) return root.contentForeground
       if (task.priority === 4) return "#eb5757"
       if (task.priority === 3) return "#f2b84b"
@@ -1049,11 +1106,23 @@ Panel {
       // Center on the title's first line, not the taller button hit area.
       anchors.topMargin: textColumn.y
         + ((row.editing ? editField.height : taskFontMetrics.height) - height) / 2
-      iconText: row.completing ? "●" : "○"
+      iconText: ""
       tooltipText: "Marquer comme terminée (Espace)"
-      foreground: row.textColor
+      foreground: row.priorityColor
       enabled: row.task && !root.taskIsPending(row.task.id)
       onClicked: root.requestComplete(row.task ? row.task.id : "")
+      Rectangle {
+        id: checkCircle
+        objectName: "taskCheck_" + row.task.id
+        anchors.centerIn: parent
+        width: Style.space(16)
+        height: width
+        radius: width / 2
+        border.width: Style.space(2)
+        border.color: row.priorityColor
+        color: row.completing ? row.priorityColor : "transparent"
+        opacity: checkBtn.enabled ? 1 : 0.5
+      }
     }
 
     FontMetrics {
@@ -1072,15 +1141,16 @@ Panel {
 
       Text {
         id: taskText
+        objectName: "taskTitle_" + row.task.id
         visible: !row.editing
         height: visible ? implicitHeight : 0
         width: parent.width
         text: Model.taskContentHtml(row.task ? row.task.content : "")
         textFormat: Text.StyledText
-        linkColor: row.textColor
+        linkColor: root.contentForeground
         opacity: row.completing ? 0.5 : 1.0
         font.strikeout: row.completing
-        color: row.textColor
+        color: root.contentForeground
         wrapMode: Text.WordWrap
         font.family: root.contentFontFamily
         font.pixelSize: Style.font.body
@@ -1136,14 +1206,37 @@ Panel {
         font.pixelSize: Style.font.caption
       }
 
-      Text {
-        visible: row.dueLabel !== "" && !row.editing
+      Item {
         width: parent.width
-        text: row.dueLabel
-        color: row.overdue ? Color.urgent : root.secondaryForeground
-        wrapMode: Text.WordWrap
-        font.family: root.contentFontFamily
-        font.pixelSize: Style.font.caption
+        visible: !row.editing && (row.dueLabel !== "" || row.projectName !== "")
+        implicitHeight: Math.max(dueMetadata.implicitHeight, projectMetadata.implicitHeight)
+        Text {
+          id: dueMetadata
+          textFormat: Text.PlainText
+          anchors.left: parent.left
+          anchors.right: projectMetadata.left
+          anchors.rightMargin: row.projectName !== "" ? Style.spacing.sm : 0
+          anchors.verticalCenter: parent.verticalCenter
+          text: row.dueLabel ? "▣ " + row.dueLabel + (row.task.due && row.task.due.is_recurring ? " ↻" : "") : ""
+          color: row.overdue ? Color.urgent : "#4baf63"
+          elide: Text.ElideRight
+          font.family: root.contentFontFamily
+          font.pixelSize: Style.font.caption
+        }
+        Text {
+          id: projectMetadata
+          objectName: "taskProject_" + row.task.id
+          textFormat: Text.PlainText
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          width: row.projectName ? Math.min(implicitWidth, parent.width * (row.dueLabel ? 0.45 : 1)) : 0
+          text: row.projectName ? row.projectName + "  #" : ""
+          color: root.secondaryForeground
+          horizontalAlignment: Text.AlignRight
+          elide: Text.ElideRight
+          font.family: root.contentFontFamily
+          font.pixelSize: Style.font.caption
+        }
       }
     }
   }

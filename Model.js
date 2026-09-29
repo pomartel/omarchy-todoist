@@ -366,3 +366,9 @@ function taskDropPlan(rows, sourceId, targetId, after, view) {
 function syncOrderSucceeded(text, uuid) {
   try { return JSON.parse(text).sync_status[uuid] === "ok" } catch (e) { return false }
 }
+
+// Inbox is the default destination, so only named projects add a row label.
+function taskProjectName(task, projects) {
+  var project = (projects || []).find(function(p) { return task && String(p.id) === String(task.project_id) })
+  return project && !project.inbox_project && !project.is_inbox_project ? String(project.name || "") : ""
+}

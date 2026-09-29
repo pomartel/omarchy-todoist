@@ -9,7 +9,7 @@ function harness() {
   const timer = { restart() { this.running = true; }, stop() { this.running = false; } };
   const root = {
     apiToken: 'test-only', apiBase: 'https://example.invalid', accountGeneration: 0, dataRevision: 0,
-    allTasks: [], tasks: [], quickView: 'today', selectedTaskIndex: -1,
+    allTasks: [], allProjects: [], projectsSyncedAt: 0, projectError: '', tasks: [], quickView: 'today', selectedTaskIndex: -1,
     editingTaskId: '', editDraft: '', pendingTaskIds: [], completingTaskIds: [], pendingRemovalIds: [],
     actionQueue: [], actionBusy: false, loading: false, refreshPending: false, quickAddSubmitting: false,
     quickAddText: '', fetchError: '', actionError: '', settingsError: '', lastSyncedAt: 0,
@@ -17,7 +17,7 @@ function harness() {
   };
   const c = { root, Model: {}, EditParser: {}, Qt: { callLater(fn) { later.push(fn); } },
     keyCatcher: {forceActiveFocus() {}}, quickAddField: {text: ''}, tokenField: {text: ''},
-    completionRemovalTimer: timer, listProc: process(), actionProc: process(), settingsWriteProc: process(),
+    completionRemovalTimer: timer, listProc: process(), projectProc: process(), actionProc: process(), settingsWriteProc: process(),
   };
   vm.createContext(c.Model); vm.runInContext(fs.readFileSync('Model.js', 'utf8'), c.Model);
   vm.createContext(c.EditParser); vm.runInContext(fs.readFileSync('EditParser.js', 'utf8'), c.EditParser);
@@ -355,4 +355,23 @@ test('changing accounts during project lookup prevents further edit stages',()=>
   r.resetAccount();r.apiToken='new-dummy';
   r.finishAction(action,0,'',JSON.stringify({results:[{id:'new',name:'Work'}],next_cursor:null}));
   assert.equal(calls.some(x=>x.command.includes('POST')),false);
+});
+
+test('project labels use a complete cached snapshot with pagination',()=>{
+  const {root:r,c,calls}=harness();r.refreshProjects();
+  c.projectProc.running=false;
+  r.finishProjects(0,JSON.stringify({results:[{id:'a',name:'One'}],next_cursor:'next'}),'');
+  assert.equal(r.allProjects.length,0);assert.match(calls.at(-1).command.at(-1),/cursor=next/);
+  c.projectProc.running=false;
+  r.finishProjects(0,JSON.stringify({results:[{id:'b',name:'Two'}],next_cursor:null}),'');
+  assert.equal(r.allProjects.length,2);assert.equal(c.Model.taskProjectName({project_id:'b'},r.allProjects),'Two');
+  const count=calls.length;r.refreshProjects();assert.equal(calls.length,count);
+});
+test('project errors preserve the prior snapshot and account changes clear labels',()=>{
+  const {root:r,c}=harness();r.allProjects=[{id:'a',name:'Old'}];r.refreshProjects();c.projectProc.running=false;
+  r.finishProjects(22,'','HTTP 500');assert.equal(r.allProjects.length,1);assert.notEqual(r.projectError,'');
+  r.refreshProjects();r.resetAccount();c.projectProc.running=false;
+  r.finishProjects(0,JSON.stringify({results:[{id:'a',name:'Old'}],next_cursor:null}),'');
+  assert.equal(r.allProjects.length,0);
+  assert.equal(c.Model.taskProjectName({project_id:'inbox'},[{id:'inbox',name:'Inbox',inbox_project:true}]),'');
 });

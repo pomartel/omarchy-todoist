@@ -55,8 +55,9 @@ constraints, and a few things that didn't work the first time.
   built-in Wi-Fi/Bluetooth panels. Hover it for your current task count, or
   turn on **Settings → Bar Count** to show a live Today/Sans date/total count
   right on the icon.
-- Panel lists matching tasks, sorted by date group and manual order (then due date and priority), color-coded
-  by Todoist priority (**p1 red, p2 yellow, p3 blue, p4 normal**). Tasks are grouped
+- Panel lists matching tasks, sorted by date group and manual order (then due date and priority), with larger, thicker checkboxes colored
+  by Todoist priority (**p1 red, p2 yellow, p3 blue, p4 normal**). Task titles
+  retain the normal text color. Tasks are grouped
   under **En retard**, **Aujourd’hui**, **À venir**, and **Sans date**, with
   empty groups omitted. Today rows omit a redundant date label but retain
   any due time. Bientôt shows tomorrow through six days from today
@@ -64,6 +65,9 @@ constraints, and a few things that didn't work the first time.
   Only days containing tasks are shown. Rows keep due times but omit repeated
   date labels; subtasks remain under their parent’s day. Secondary text
   and placeholders use a higher-contrast version of the theme foreground.
+  An omatasks-style metadata line places green time/date details (red when overdue)
+  on the left and a muted project name with `#` on the right. Inbox labels are
+  omitted. Project names are loaded through a paginated, one-minute cache.
 - Click the circle next to a task to mark it complete. The row is struck
   through immediately and removed after server confirmation and a short delay.
   Failed actions stay visible with an error; edits and deletions wait for confirmation.

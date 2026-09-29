@@ -23,7 +23,7 @@ ShellRoot {
     }
     function init() {
       panel.cancelEditTask(); panel.cancelTaskDrag(); panel.actionBusy = false; panel.actionQueue = []; panel.pendingTaskIds = []
-      panel.captured = []; panel.loading = false; panel.apiToken = "synthetic"; panel.settingsView = false
+      panel.allProjects = []; panel.captured = []; panel.loading = false; panel.apiToken = "synthetic"; panel.settingsView = false
       panel.quickView = "today"; panel.controller.show()
       panel.allTasks = Array.from({length: 25}, function(_, i) {
         return {id: String(i), content: "Synthetic task " + i, day_order: i, due: {date: Model.todayIsoDate()}}
@@ -47,6 +47,20 @@ ShellRoot {
     function payload() {
       var command = panel.captured[0]
       return JSON.parse(command[command.indexOf("-d") + 1])
+    }
+    function test_project_metadata_and_priority() {
+      panel.allProjects = [{id:"work",name:"Travail"}, {id:"inbox",name:"Inbox",inbox_project:true}]
+      panel.allTasks = [
+        {id:"a",content:"Préparer la réunion",priority:4,project_id:"work",due:{date:Model.todayIsoDate()+"T17:30:00"}},
+        {id:"b",content:"Lire le rapport",priority:2,project_id:"work",due:{date:Model.todayIsoDate()}},
+        {id:"c",content:"Vérifier les notes",priority:1,project_id:"inbox",due:{date:Model.todayIsoDate()}}
+      ]
+      panel.applySnapshot(); wait(100)
+      compare(findChild(panel,"taskTitle_a").color, panel.contentForeground)
+      compare(findChild(panel,"taskCheck_a").border.color, "#eb5757")
+      compare(findChild(panel,"taskProject_a").text, "Travail  #")
+      compare(findChild(panel,"taskProject_c").text, "")
+      grabImage(window.contentItem).save("/tmp/todoist-project-style.png")
     }
     function test_inline_edit_metadata() {
       panel.selectedTaskIndex = 0

@@ -2,6 +2,12 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.20.0 — Task metadata styling
+
+- Show project names under tasks, aligned right, with omatasks-style date/time details on the left.
+- Keep priority colors on the checkbox only; task titles use the normal text color.
+- Draw larger 16px checkboxes with a consistent 2px border and preserve subtask alignment.
+
 ## v1.19.0 — Inline edit metadata
 
 - Parse French/English dates and times, p1–p4 priorities, and #Project when editing task names.
