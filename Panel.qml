@@ -856,7 +856,7 @@ Panel {
     property bool moved: false
     acceptedButtons: Qt.LeftButton
     preventStealing: true
-    cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+    cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
     onPressed: function(mouse) { pressPoint = Qt.point(mouse.x, mouse.y); moved = false }
     onPositionChanged: function(mouse) {
       if (!pressed || (mouse.modifiers & Qt.ControlModifier)) return
@@ -882,6 +882,7 @@ Panel {
 
   component TaskRow: Item {
     id: row
+    objectName: "taskRow_" + task.id
     required property var task
     // Not named "index" — a delegate instantiating this component also
     // needs its own ListView-injected "required property int index", and
@@ -943,11 +944,19 @@ Panel {
       && root.tasks[rowIndex + 1].subtaskDepth > 0 ? Style.spacing.hairline : Style.spacing.sm
     height: Math.max(checkBtn.height, textColumn.implicitHeight) + rowTopPadding + rowBottomPadding
 
+    HoverHandler {
+      id: taskHover
+      enabled: !row.editing
+      cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
+    }
+
     Rectangle {
+      objectName: "taskHighlight_" + row.task.id
       anchors.fill: parent
-      anchors.margins: -Style.spacing.xs
+      anchors.leftMargin: -Style.spacing.xs
+      anchors.rightMargin: -Style.spacing.xs
       radius: Style.cornerRadius
-      visible: row.hasCursor
+      visible: row.hasCursor || (taskHover.hovered && !root.dragging)
       color: Style.hoverFillFor(root.contentForeground, Color.accent)
     }
 
@@ -971,7 +980,7 @@ Panel {
       anchors.left: parent.left
       anchors.top: parent.top
       // Center on the title's first line, not the taller button hit area.
-      anchors.topMargin: row.rowTopPadding
+      anchors.topMargin: textColumn.y
         + ((row.editing ? editField.height : taskFontMetrics.height) - height) / 2
       iconText: row.completing ? "●" : "○"
       tooltipText: "Marquer comme terminée (Espace)"
@@ -987,11 +996,11 @@ Panel {
 
     Column {
       id: textColumn
+      objectName: "taskContent_" + row.task.id
       anchors.left: checkBtn.right
       anchors.leftMargin: Style.spacing.sm
       anchors.right: parent.right
-      anchors.top: parent.top
-      anchors.topMargin: row.rowTopPadding
+      anchors.verticalCenter: parent.verticalCenter
       spacing: 2
 
       Text {
@@ -1014,7 +1023,7 @@ Panel {
           anchors.fill: parent
           acceptedButtons: Qt.LeftButton
           hoverEnabled: true
-          cursorShape: root.dragging ? Qt.ClosedHandCursor : taskText.linkAt(mouseX, mouseY) !== "" ? Qt.PointingHandCursor : Qt.OpenHandCursor
+          cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
 
           onClicked: function(mouse) {
             if (moved) return

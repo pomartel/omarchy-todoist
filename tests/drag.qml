@@ -48,6 +48,24 @@ ShellRoot {
       var command = panel.captured[0]
       return JSON.parse(command[command.indexOf("-d") + 1])
     }
+    function test_hover_alignment_and_cursor() {
+      var row = findChild(panel, "taskRow_0")
+      var highlight = findChild(panel, "taskHighlight_0")
+      var content = findChild(panel, "taskContent_0")
+      panel.taskCursorActive = false
+      mouseMove(row, 65, row.height / 2)
+      tryCompare(highlight, "visible", true)
+      compare(pointer("0").cursorShape, Qt.ArrowCursor)
+      verify(Math.abs(content.y + content.height / 2 - row.height / 2) < 0.5)
+      compare(highlight.height, row.height)
+      grabImage(window.contentItem).save("/tmp/todoist-task-hover.png")
+      mouseMove(window.contentItem, 1, 1)
+      tryCompare(highlight, "visible", false)
+      var item = start("0")
+      compare(item.cursorShape, Qt.ClosedHandCursor)
+      panel.cancelTaskDrag()
+      mouseRelease(item, 60, 32)
+    }
     function test_reorder() {
       var item = start("2"), p = move(item, pointer("0"), 60, 2)
       verify(panel.dragDrop !== null); verify(panel.dragDrop.plan !== undefined)
