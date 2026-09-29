@@ -71,11 +71,11 @@ constraints, and a few things that didn't work the first time.
   `#Project`, `@label`, and natural-language due dates (`tomorrow at 5pm`,
   `next Monday`) all work exactly like typing into Todoist itself. A bare
   task with no date in it (`Buy milk`) defaults to today in Today and tomorrow in Bientôt; Sans date leaves it undated. Explicit `sans date` is preserved.
-- **Auj / Bientôt / Sans date** quick-view tabs above the list.
+- **Aujourd’hui / Bientôt / Sans date** quick-view tabs above the list.
 - Drag task text to reorder within a group. Main tasks move with their subtasks;
   subtasks reorder among siblings without changing parents. Manual order is saved
   through Todoist's [day-order API](https://developer.todoist.com/api/v1/).
-- Drop on **Auj** to schedule today, **Bientôt** for tomorrow, or **Sans date** to
+- Drop on **Aujourd’hui** to schedule today, **Bientôt** for tomorrow, or **Sans date** to
   remove the due date. In Bientôt, drop on another day heading or a main task in
   that section to schedule that day. A date drop updates only the dragged task;
   subtasks still appear under their parent. Dragging near the list edges scrolls;
@@ -87,7 +87,7 @@ constraints, and a few things that didn't work the first time.
   every 2 minutes while the popup's open, or every 20 minutes in the
   background while it's closed (never both at once). Overlapping refresh
   requests are coalesced. All pages are fetched before publishing a snapshot;
-  Auj, Bientôt, Sans date, and the bar count share those results.
+  Aujourd’hui, Bientôt, Sans date, and the bar count share those results.
   Sans date shows undated main tasks from every project with their subtasks. Active subtasks are included in views and counts,
   nested compactly beneath their parent, with indentation instead of repeated
   parent names, including undated subtasks and deeper
@@ -132,7 +132,7 @@ point never shifts as your count changes.
 
 - **Open/close**: click the bar icon or run
   `omarchy-shell shell toggle omarchy-todoist`.
-- Click **Auj**, **Bientôt**, or **Sans date** to switch views.
+- Click **Aujourd’hui**, **Bientôt**, or **Sans date** to switch views.
 - Click a task's circle to mark it complete.
 - Task titles render Markdown links. Ctrl-click a link to open it in your
   default browser; a plain click selects the task.
@@ -151,8 +151,8 @@ The whole panel is operable without a mouse:
 | Key | Action |
 | --- | --- |
 | `Escape` | Back out of Settings to the task list (works from any Settings field too); press again to close the panel. While the Add-a-task box has focus, just leaves the box instead |
-| `Tab` / `Shift+Tab` | Cycle Auj → Bientôt → Sans date. Inside Settings, instead walks every control in order — token field, Save/Remove token, bar count, and the General/Advanced buttons and steppers — scrolling as needed to keep the focused control in view |
-| `a` / `d` / `i` | Jump straight to Auj, Bientôt, or Sans date. Inside Settings, `t` opens Todoist in the browser |
+| `Tab` / `Shift+Tab` | Cycle Aujourd’hui → Bientôt → Sans date. Inside Settings, instead walks every control in order — token field, Save/Remove token, bar count, and the General/Advanced buttons and steppers — scrolling as needed to keep the focused control in view |
+| `a` / `d` / `i` | Jump straight to Aujourd’hui, Bientôt, or Sans date. Inside Settings, `t` opens Todoist in the browser |
 | `Ctrl` + `a` / `d` / `i` | For the selected task, set its due date to today, tomorrow, or none |
 | `p` | Toggle Settings open/closed |
 | `↑`/`↓` or `k`/`j` | Move the selection up/down the task list |

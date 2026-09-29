@@ -1353,7 +1353,7 @@ Panel {
               NavButton {
                 id: barCountTodayButton
                 width: barCountRow.cellWidth
-                text: "Auj"
+                text: "Aujourd’hui"
                 selected: root.barCountMode === "today"
                 onClicked: root.setBarCountMode("today")
               }
@@ -1551,17 +1551,16 @@ Panel {
               height: visible ? scroll.height : 0
               spacing: Style.spacing.md
 
-            Row {
+            Item {
               id: quickAddRow
               width: parent.width
-              clip: true
-              spacing: Style.spacing.sm
+              implicitHeight: Math.max(quickAddField.implicitHeight, settingsButton.implicitHeight + Style.spacing.xs * 2)
 
               TextField {
                 id: quickAddField
                 placeholderTextColor: root.secondaryForeground
-                width: Math.max(0, parent.width - settingsButton.width - quickAddRow.spacing)
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.fill: parent
+                rightPadding: settingsButton.width + Style.spacing.xs * 2 + Border.right(_borderSpec)
                 enabled: root.apiToken !== ""
                 font.pixelSize: Style.font.caption
                 placeholderText: "Ajouter une tâche… (p1, #Projet, demain à 17 h)"
@@ -1576,6 +1575,8 @@ Panel {
               PanelActionButton {
                 id: settingsButton
                 objectName: "settingsButton"
+                anchors.right: parent.right
+                anchors.rightMargin: Style.spacing.xs
                 anchors.verticalCenter: parent.verticalCenter
                 iconText: "󰒓"
                 tooltipText: "Réglages (p)"
@@ -1604,7 +1605,7 @@ Panel {
                 tabIndex: 0
                 viewIcon: "today"
                 width: quickViewRow.cellWidth
-                label: "Auj (" + root.countForView("today") + ")"
+                label: "Aujourd’hui (" + root.countForView("today") + ")"
                 selected: root.quickView === "today"
                 bordered: true
                 focusable: false
@@ -1822,8 +1823,8 @@ Panel {
                     color: root.contentForeground
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.bodySmall
-                    text: "Tab / Maj+Tab — parcourir Auj → Bientôt → Sans date\n"
-                      + "a / d / i — accéder à Auj / Bientôt / Sans date\n"
+                    text: "Tab / Maj+Tab — parcourir Aujourd’hui → Bientôt → Sans date\n"
+                      + "a / d / i — accéder à Aujourd’hui / Bientôt / Sans date\n"
                       + "Ctrl+a / Ctrl+d / Ctrl+i (tâche sélectionnée) — échéance aujourd’hui / demain / aucune\n"
                       + "p — afficher/masquer les réglages\n"
                       + "↑/↓ ou k/j — déplacer la sélection\n"

@@ -2,6 +2,11 @@
 
 All notable user-facing changes to this plugin. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## v1.18.3 — Task toolbar labels
+
+- Place the settings cog inside the add-task textbox, with reserved text padding.
+- Rename Auj to Aujourd’hui while retaining equal tab widths.
+
 ## v1.18.2 — Bar icon alignment
 
 - Raise the bar icon slightly to align with the task count, preserving centering when the count is hidden.
